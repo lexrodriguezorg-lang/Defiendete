@@ -1,0 +1,232 @@
+/* ============================================================
+   Defiéndete — DESIGN SYSTEM
+   Paleta: Gris Grafito + Cian Tecnológico #00B4A0
+   Tipografía: DM Serif Display (display) + DM Sans (body)
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* === COLORES PRINCIPALES === */
+  --cyan:          #00B4A0;
+  --cyan-light:    #2DD4BF;
+  --cyan-dark:     #009688;
+  --cyan-dim:      rgba(0, 180, 160, 0.12);
+  --cyan-glow:     rgba(0, 180, 160, 0.25);
+
+  --gray-950:      #0D0F12;
+  --gray-900:      #141720;
+  --gray-850:      #1A1E2A;
+  --gray-800:      #212633;
+  --gray-700:      #2E3545;
+  --gray-600:      #3D4860;
+  --gray-400:      #7A8699;
+  --gray-300:      #A8B4C4;
+  --gray-200:      #C8D0DA;
+  --gray-100:      #E8ECF0;
+  --gray-50:       #F4F6F8;
+
+  --white:         #FFFFFF;
+  --black:         #000000;
+
+  /* Semánticos */
+  --bg-base:       var(--gray-950);
+  --bg-surface:    var(--gray-900);
+  --bg-elevated:   var(--gray-850);
+  --bg-card:       var(--gray-800);
+  --border:        var(--gray-700);
+  --border-subtle: rgba(255,255,255,0.06);
+  --text-primary:  var(--white);
+  --text-secondary:var(--gray-300);
+  --text-muted:    var(--gray-400);
+  --accent:        var(--cyan);
+  --accent-hover:  var(--cyan-light);
+
+  /* Semáforo */
+  --success:       #22D3A0;
+  --warning:       #F4A72B;
+  --danger:        #F45B5B;
+
+  /* === TIPOGRAFÍA === */
+  --font-display:  'DM Serif Display', Georgia, serif;
+  --font-body:     'DM Sans', system-ui, sans-serif;
+
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.5rem;
+  --text-3xl:  1.875rem;
+  --text-4xl:  2.25rem;
+  --text-5xl:  3rem;
+  --text-6xl:  3.75rem;
+  --text-7xl:  4.5rem;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.6;
+
+  /* === SPACING === */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* === RADIOS === */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  /* === SOMBRAS === */
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.4);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.5);
+  --shadow-cyan: 0 0 24px rgba(0, 180, 160, 0.3);
+  --shadow-cyan-sm: 0 0 12px rgba(0, 180, 160, 0.2);
+
+  /* === TRANSICIONES === */
+  --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base:   250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === RESET BASE === */
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-base);
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  line-height: var(--leading-tight);
+  font-weight: 400;
+}
+
+h5, h6 {
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gray-600);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
+/* === UTILIDADES === */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.container-narrow {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
+/* === ANIMACIONES GLOBALES === */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse-cyan {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 180, 160, 0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(0, 180, 160, 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animate-fade-in {
+  animation: fadeIn 0.5s ease both;
+}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
