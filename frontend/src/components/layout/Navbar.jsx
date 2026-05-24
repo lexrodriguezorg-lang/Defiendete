@@ -11,7 +11,7 @@ const Navbar = () => {
   const links = [
     { to: '/#como-funciona', label: '¿Cómo funciona?' },
     { to: '/#precios', label: 'Precios' },
-    { to: '/#abogados', label: 'Para abogados' },
+    { to: '/abogados', label: 'Para abogados' },
   ]
 
   return (
