@@ -103,7 +103,7 @@ const TESTIMONIALS = [
     name: 'Héctor Vargas',
     location: 'Medellín, Antioquia',
     case: 'Derecho de petición laboral',
-    text: 'Me despidieron sin pagarme liquidación. Con el documento que generó la plataforma y sin pagar un abogado recuperé todo lo que me debían.',
+    text: 'Me despidieron sin pagarme liquidación. Defiéndete me explicó exactamente qué documentos presentar y con qué artículos. Recuperé todo lo que me debían.',
     stars: 5,
   },
   {
@@ -330,8 +330,8 @@ const Landing = () => {
         <div className="container">
           <div className="section-header">
             <span className="section-tag">Precios</span>
-            <h2>Lo que un abogado cobra por hora,<br /><em>nosotros lo hacemos por menos</em></h2>
-            <p>En Colombia, una consulta con abogado cuesta entre $150.000 y $500.000. Nosotros hacemos más, por menos.</p>
+            <h2>Conoce tus derechos<br /><em>antes de necesitar a alguien</em></h2>
+            <p>Defiéndete no reemplaza abogados — te prepara para usarlos mejor, o para los casos donde la ley te permite actuar solo.</p>
           </div>
 
           <div className="plans">
@@ -402,23 +402,23 @@ const Landing = () => {
         <div className="container lawyers__inner">
           <div className="lawyers__text">
             <span className="section-tag">Para abogados</span>
-            <h2>¿Eres abogado?<br /><em>Únete a la red.</em></h2>
-            <p>Recibe casos ya estrategizados y documentados. Tu trabajo: revisar, ajustar si necesario, y poner tu presencia el día que toca. Menos trabajo de base, más casos al mes.</p>
+            <h2>¿Eres abogado?<br /><em>Esta es tu herramienta.</em></h2>
+            <p>Defiéndete no compite contigo — trabaja para ti. Úsala para generar documentos base para tus clientes, o recibe casos de ciudadanos que llegaron preparados, con su expediente completo y su estrategia documentada.</p>
             <Link to="/abogados" className="btn-cta">
-              Quiero ser aliado
+              Ver el modelo de colaboración
               <ArrowRight size={18} />
             </Link>
           </div>
           <div className="lawyers__card">
             <Users size={28} className="lawyers-icon" />
-            <h3>Modelo de colaboración</h3>
+            <h3>Dos formas de usar Defiéndete</h3>
             <div className="lawyers-steps">
               {[
-                'El cliente obtiene el diagnóstico y la estrategia',
-                'Si necesita representación, el caso llega a ti documentado',
-                'Revisas el plan, ajustas si es necesario',
-                'Apareces el día de la diligencia',
-                'Cobras por presencia, no por horas de investigación',
+                'Genera plantillas y documentos base para tus clientes',
+                'Accede a jurisprudencia verificada en segundos',
+                'Recibe casos con expediente completo ya preparado',
+                'El cliente llega informado — tú te enfocas en lo estratégico',
+                'Más casos atendidos, menos horas operativas',
               ].map((s, i) => (
                 <div key={i} className="lawyers-step">
                   <span className="lawyers-num">{i + 1}</span>

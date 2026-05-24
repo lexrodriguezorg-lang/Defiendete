@@ -3,6 +3,7 @@ import Navbar from './components/layout/Navbar'
 import Landing from './pages/Landing'
 import Caso from './pages/Caso'
 import Dashboard from './pages/Dashboard'
+import Abogados from './pages/Abogados'
 import './index.css'
 
 const App = () => {
@@ -21,7 +22,7 @@ const App = () => {
         <Route path="/caso" element={<Caso />} />
 
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/abogados" element={<div style={{padding:'120px 24px',textAlign:'center',color:'var(--text-muted)'}}>Portal de Abogados — Próximamente</div>} />
+        <Route path="/abogados" element={<Abogados />} />
         <Route path="/login" element={<div style={{padding:'120px 24px',textAlign:'center',color:'var(--text-muted)'}}>Login — Próximamente</div>} />
       </Routes>
     </BrowserRouter>
