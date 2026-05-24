@@ -41,53 +41,46 @@ const STEPS = [
   },
 ]
 
-const PLANS = [
+const PRICING_TIERS = [
   {
-    name: 'Diagnóstico',
-    price: 'Gratis',
-    sub: 'Siempre',
-    features: [
-      'Clasificación del caso',
-      'Derechos vulnerados',
-      'Opciones legales disponibles',
-      'Urgencia del caso',
+    nivel: 'Baja',
+    precio: '$30.000',
+    sub: 'COP · pago único',
+    icono: '📋',
+    color: '#22D3A0',
+    ejemplos: [
+      'Derechos de petición simples',
+      'Solicitudes de información a entidades',
+      'Reclamaciones de garantía comercial',
+      'Quejas ante la SIC',
     ],
-    cta: 'Comenzar gratis',
-    href: '/caso',
-    highlight: false,
   },
   {
-    name: 'Estrategia',
-    price: '$80.000',
+    nivel: 'Media',
+    precio: '$50.000 – $80.000',
     sub: 'COP · pago único',
-    features: [
-      'Todo del plan Diagnóstico',
-      'Plan de acción paso a paso',
-      'Artículos y sentencias verificadas',
-      'Plazos legales exactos',
-      'Probabilidad de éxito',
-      'Chat con asistente IA',
-    ],
-    cta: 'Obtener estrategia',
-    href: '/caso?plan=estrategia',
+    icono: '⚖️',
+    color: '#F4A72B',
     highlight: true,
-    badge: 'Más popular',
+    ejemplos: [
+      'Despidos sin justa causa y liquidaciones',
+      'Derechos de petición laborales',
+      'Cobros injustificados de servicios públicos',
+      'Acoso laboral y solicitudes de liquidación',
+    ],
   },
   {
-    name: 'Documentos + Seguimiento',
-    price: '$150.000',
+    nivel: 'Alta',
+    precio: '$100.000 – $150.000',
     sub: 'COP · pago único',
-    features: [
-      'Todo del plan Estrategia',
-      'Documentos listos para radicar',
-      'Panel de seguimiento Rama Judicial',
-      'Alertas de cambios en tu proceso',
-      '6 meses de monitoreo activo',
-      'Abogado on-demand disponible',
+    icono: '🛡️',
+    color: '#00B4A0',
+    ejemplos: [
+      'Acciones de tutela por salud o familia',
+      'Custodia y restitución de menores',
+      'Contratos y minutas comerciales',
+      'Acciones de amparo constitucional',
     ],
-    cta: 'Activar plan completo',
-    href: '/caso?plan=completo',
-    highlight: false,
   },
 ]
 
@@ -329,39 +322,63 @@ const Landing = () => {
       <section className="pricing" id="precios">
         <div className="container">
           <div className="section-header">
-            <span className="section-tag">Precios</span>
-            <h2>Conoce tus derechos<br /><em>antes de necesitar a alguien</em></h2>
-            <p>Defiéndete no reemplaza abogados — te prepara para usarlos mejor, o para los casos donde la ley te permite actuar solo.</p>
+            <span className="section-tag">Cotización automática</span>
+            <h2>El precio lo determina<br /><em>tu caso, no nosotros</em></h2>
+            <p>Antes de pagar, el diagnóstico gratuito evalúa la complejidad de tu situación y te cotiza exactamente cuánto cuesta.</p>
           </div>
 
-          <div className="plans">
-            {PLANS.map((plan, i) => (
-              <div key={i} className={`plan-card ${plan.highlight ? 'plan-card--highlight' : ''}`}>
-                {plan.badge && (
-                  <div className="plan-badge">{plan.badge}</div>
-                )}
-                <div className="plan-name">{plan.name}</div>
-                <div className="plan-price">
-                  <span className="plan-amount">{plan.price}</span>
-                  <span className="plan-period">{plan.sub}</span>
+          {/* Flujo de cotización */}
+          <div className="pricing-flow">
+            {[
+              { n: '1', label: 'Cuéntanos tu caso',     sub: 'Gratis · sin registro' },
+              { n: '2', label: 'Diagnóstico inmediato', sub: 'Rama del derecho y derechos vulnerados' },
+              { n: '3', label: 'Cotización exacta',     sub: 'El sistema evalúa la complejidad' },
+              { n: '4', label: 'Pagas y recibes',       sub: 'Documentos listos para radicar' },
+            ].map((item, i) => (
+              <div key={i} className="pricing-flow-step">
+                <div className="pf-number">{item.n}</div>
+                <div className="pf-content">
+                  <strong>{item.label}</strong>
+                  <span>{item.sub}</span>
                 </div>
-                <ul className="plan-features">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="plan-feature">
-                      <CheckCircle2 size={15} />
-                      <span>{f}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tiers de referencia */}
+          <p className="tiers-label">Precios de referencia según complejidad del caso</p>
+          <div className="tiers">
+            {PRICING_TIERS.map((tier, i) => (
+              <div key={i} className={`tier-card ${tier.highlight ? 'tier-card--mid' : ''}`}>
+                <span className="tier-icon">{tier.icono}</span>
+                <div className="tier-nivel" style={{ color: tier.color }}>
+                  Complejidad {tier.nivel}
+                </div>
+                <div className="tier-precio">
+                  <span className="tier-amount">{tier.precio}</span>
+                  <span className="tier-sub">{tier.sub}</span>
+                </div>
+                <ul className="tier-ejemplos">
+                  {tier.ejemplos.map((ej, j) => (
+                    <li key={j} className="tier-ejemplo">
+                      <CheckCircle2 size={13} />
+                      <span>{ej}</span>
                     </li>
                   ))}
                 </ul>
-                <Link
-                  to={plan.href}
-                  className={plan.highlight ? 'btn-cta' : 'btn-outline'}
-                >
-                  {plan.cta}
-                  <ArrowRight size={16} />
-                </Link>
               </div>
             ))}
+          </div>
+
+          <div className="pricing-cta">
+            <p className="pricing-cta-note">
+              El diagnóstico determina exactamente en qué nivel está tu caso
+            </p>
+            <Link to="/caso" className="btn-cta btn-cta--lg">
+              Comenzar diagnóstico gratis
+              <ArrowRight size={20} />
+            </Link>
+            <p className="pricing-cta-sub">Sin registro · Sin tarjeta · Sin compromisos</p>
           </div>
         </div>
       </section>
