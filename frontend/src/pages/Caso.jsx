@@ -157,7 +157,7 @@ const Caso = () => {
   const [leadData, setLeadData] = useState({ nombre: '', contacto: '' })
   const [loadingMsg, setLoadingMsg] = useState(0)
 
-  const canSubmit    = story.trim().length >= 30
+  const canSubmit     = story.trim().length >= 30
   const canSubmitLead = leadData.nombre.trim().length >= 2 && leadData.contacto.trim().length >= 5
 
   /* Cicla los mensajes del loader mientras está en carga */
@@ -172,11 +172,16 @@ const Caso = () => {
     return () => clearInterval(interval)
   }, [step])
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return
+  /*
+   * runDiagnosis(storyText) — recibe el texto DIRECTAMENTE como parámetro.
+   * Esto elimina el bug de closure donde handleSubmit capturaba el valor viejo
+   * de `story` del render anterior cuando el usuario hacía click en un chip.
+   * inferComplexidad siempre recibe el texto correcto, sin depender del estado.
+   */
+  const runDiagnosis = async (storyText) => {
+    if (!storyText || storyText.trim().length < 30) return
     setStep('loading')
 
-    /* Timer mínimo de 3.8s (efecto consultoría) corriendo en paralelo con la API */
     const timerPromise = new Promise(r => setTimeout(r, 3800))
 
     let apiResult
@@ -184,27 +189,36 @@ const Caso = () => {
       const res = await fetch('/api/cases/diagnose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ story }),
+        body: JSON.stringify({ story: storyText }),
       })
       if (!res.ok) throw new Error('API no disponible')
       const data = await res.json()
-      apiResult = { ...data, complejidad: data.complejidad || inferComplexidad(story) }
+      apiResult = { ...data, complejidad: data.complejidad || inferComplexidad(storyText) }
     } catch {
-      const complejidad = inferComplexidad(story)
+      const complejidad = inferComplexidad(storyText)   // ← storyText, nunca el estado viejo
       const mock = MOCK_BY_COMPLEXITY[complejidad]
       apiResult = {
         success: true,
         complejidad,
-        rama: mock.rama,
-        urgencia: mock.urgencia,
+        rama:         mock.rama,
+        urgencia:     mock.urgencia,
         triage_result: mock.triage_result,
         payment_required_for: ['estrategia_completa', 'documentos', 'seguimiento'],
       }
     }
 
-    await timerPromise  /* Garantiza mínimo 3.8s de loader */
+    await timerPromise
     setResult(apiResult)
     setStep('capture')
+  }
+
+  /* Botón principal — usa el estado actual del textarea */
+  const handleSubmit = () => runDiagnosis(story)
+
+  /* Click en chip — pasa el texto directamente, sin esperar re-render del estado */
+  const handleExampleClick = (ex) => {
+    setStory(ex)
+    runDiagnosis(ex)
   }
 
   const handleLeadSubmit = (e) => {
@@ -274,7 +288,7 @@ const Caso = () => {
               <span className="examples-label">O elige un caso similar:</span>
               <div className="examples-list">
                 {CASE_EXAMPLES.map((ex, i) => (
-                  <button key={i} className="example-chip" onClick={() => setStory(ex)}>
+                  <button key={i} className="example-chip" onClick={() => handleExampleClick(ex)}>
                     {ex}
                   </button>
                 ))}
