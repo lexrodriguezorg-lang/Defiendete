@@ -264,8 +264,17 @@ export default function DashboardAbogado() {
         </div>
       </aside>
 
-      {/* Overlay mobile */}
-      {sidebar && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setSidebar(false)} />}
+      {/* Overlay mobile — cierra el sidebar al tocar fuera */}
+      {sidebar && (
+        <div
+          onClick={() => setSidebar(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 45,
+            background: 'rgba(0,0,0,0.72)',
+            cursor: 'pointer',
+          }}
+        />
+      )}
 
       {/* ── MAIN ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
