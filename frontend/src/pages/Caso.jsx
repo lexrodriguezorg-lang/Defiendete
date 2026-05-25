@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import {
   ArrowRight, ArrowLeft, CheckCircle2, DollarSign,
   Scale, Shield, Lock,
@@ -269,6 +270,7 @@ const LOADER_MSGS = [
 
 /* ── Componente principal ── */
 const Caso = () => {
+  const { user, isAuthenticated } = useAuth()
   const [step, setStep]       = useState('form')
   const [story, setStory]     = useState('')
   const [result, setResult]   = useState(null)
@@ -276,7 +278,10 @@ const Caso = () => {
   const [loadingMsg, setLoadingMsg] = useState(0)
 
   const canSubmit     = story.trim().length >= 30
-  const canSubmitLead = leadData.nombre.trim().length >= 2 && leadData.contacto.trim().length >= 5
+  // Si hay sesión, el lead ya tiene nombre y email — no se requiere el form de captura
+  const canSubmitLead = isAuthenticated
+    ? true
+    : leadData.nombre.trim().length >= 2 && leadData.contacto.trim().length >= 5
 
   /* Cicla los mensajes del loader mientras está en carga */
   useEffect(() => {
@@ -334,7 +339,13 @@ const Caso = () => {
 
     await timerPromise
     setResult(apiResult)
-    setStep('capture')
+    // Si el usuario está logueado, sus datos ya están en AuthContext — saltar captura
+    if (isAuthenticated) {
+      setLeadData({ nombre: user.nombre, contacto: user.email || '' })
+      setStep('result')
+    } else {
+      setStep('capture')
+    }
   }
 
   /* Botón principal — usa el estado actual del textarea */

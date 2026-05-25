@@ -171,7 +171,7 @@ export default function DashboardUsuario() {
   const nombreUsuario = user?.nombre || USUARIO.nombre
   const inicialesUsuario = nombreUsuario.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
-  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
+  const handleLogout = () => { logout(); navigate('/', { replace: true }) }
 
   const nav = [
     { id: 'resumen',  label: 'Resumen',       icon: <LayoutDashboard size={17} /> },
@@ -198,11 +198,11 @@ export default function DashboardUsuario() {
         <div className="h-16 flex items-center justify-between px-5 border-b border-d-border shrink-0">
           <Logo size={32} showText={true} />
           <button
-            className="lg:hidden p-2 -mr-1 text-d-muted"
+            className="lg:hidden p-1.5 rounded-lg text-d-muted hover:text-d-primary transition-colors"
             onClick={() => setSidebar(false)}
-            style={{ cursor: 'pointer' }}
+            style={{ background: 'transparent', cursor: 'pointer', border: 'none' }}
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
@@ -279,16 +279,23 @@ export default function DashboardUsuario() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Topbar mobile */}
-        <div className="lg:hidden flex items-center justify-between px-4 h-14 bg-d-surface border-b border-d-border shrink-0">
-          <button className="text-d-muted" onClick={() => setSidebar(true)}><Menu size={20} /></button>
+        <div className="lg:hidden flex items-center justify-between px-4 h-14 border-b border-d-border shrink-0" style={{ background: '#0E1117' }}>
+          <button
+            onClick={() => setSidebar(true)}
+            className="p-1.5 rounded-lg text-d-muted hover:text-d-primary transition-colors"
+          >
+            <Menu size={20} />
+          </button>
           <Logo size={28} showText={true} />
-          {alertasNoLeidas > 0 && (
-            <button onClick={() => setSection('alertas')} className="relative text-d-muted">
+          {alertasNoLeidas > 0 ? (
+            <button onClick={() => setSection('alertas')} className="relative p-1.5 rounded-lg text-d-muted hover:text-brand transition-colors">
               <Bell size={20} />
-              <span className="absolute -top-1 -right-1 bg-bad text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 bg-bad text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 {alertasNoLeidas}
               </span>
             </button>
+          ) : (
+            <div className="w-8" />
           )}
         </div>
 
