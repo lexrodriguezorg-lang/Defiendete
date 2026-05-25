@@ -185,14 +185,14 @@ export default function DashboardUsuario() {
 
       {/* ── SIDEBAR ── */}
       <aside
-        className="flex flex-col border-r border-d-border shrink-0 lg:w-64"
-        style={{
-          position: 'fixed', top: 0, bottom: 0, left: 0, width: 256,
-          background: '#141720',
-          zIndex: 50,
-          transform: sidebar ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.3s ease',
-        }}
+        style={{ background: '#141720' }}
+        className={`
+          flex flex-col border-r border-d-border w-64 shrink-0
+          fixed top-0 bottom-0 left-0 z-50
+          transition-transform duration-300
+          lg:static lg:top-auto lg:bottom-auto lg:z-auto lg:translate-x-0
+          ${sidebar ? 'translate-x-0' : '-translate-x-full'}
+        `}
       >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-d-border shrink-0">
