@@ -186,17 +186,20 @@ export default function DashboardUsuario() {
 
       {/* ── SIDEBAR ── */}
       <aside
-        style={{ background: '#141720' }}
+        style={{ background: '#141720', zIndex: 9999 }}
         className={`
-        fixed inset-y-0 left-0 z-50 w-64 border-r border-d-border flex flex-col
-        transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto
+        fixed inset-y-0 left-0 w-64 border-r border-d-border flex flex-col
+        transition-transform duration-300 lg:translate-x-0 lg:static
         ${sidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-d-border shrink-0">
           <Logo size={32} showText={true} />
-          <button className="lg:hidden text-d-muted" onClick={() => setSidebar(false)}>
-            <X size={18} />
+          <button
+            className="lg:hidden p-2 -mr-1 text-d-muted hover:text-d-primary"
+            onClick={() => setSidebar(false)}
+          >
+            <X size={22} />
           </button>
         </div>
 
@@ -256,13 +259,13 @@ export default function DashboardUsuario() {
         </div>
       </aside>
 
-      {/* Overlay mobile — portal a body para evitar cualquier conflicto de z-index/overflow */}
+      {/* Overlay mobile */}
       {sidebar && createPortal(
         <div
           onClick={() => setSidebar(false)}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            zIndex: 45,
+            zIndex: 9998,
             background: 'rgba(0,0,0,0.72)',
             cursor: 'pointer',
           }}
