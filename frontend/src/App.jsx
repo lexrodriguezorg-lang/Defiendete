@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import PrivateRoute from './components/auth/PrivateRoute'
 import Navbar from './components/layout/Navbar'
 import Landing from './pages/Landing'
 import Caso from './pages/Caso'
@@ -6,30 +8,48 @@ import Dashboard from './pages/Dashboard'
 import Abogados from './pages/Abogados'
 import DashboardUsuario from './pages/DashboardUsuario'
 import DashboardAbogado from './pages/DashboardAbogado'
+import Login from './pages/Login'
+import Registro from './pages/Registro'
 import './index.css'
 
 const App = () => {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Landing con navbar */}
-        <Route path="/" element={
-          <>
-            <Navbar />
-            <Landing />
-          </>
-        } />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
 
-        {/* Flujo de caso — sin navbar principal */}
-        <Route path="/caso" element={<Caso />} />
+          {/* ── Rutas públicas ── */}
+          <Route path="/" element={<><Navbar /><Landing /></>} />
+          <Route path="/caso"     element={<Caso />} />
+          <Route path="/abogados" element={<><Navbar /><Abogados /></>} />
+          <Route path="/dashboard" element={<><Navbar /><Dashboard /></>} />
+          <Route path="/login"    element={<Login />} />
+          <Route path="/registro" element={<Registro />} />
 
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/abogados" element={<Abogados />} />
-        <Route path="/dashboard/usuario"  element={<DashboardUsuario />} />
-        <Route path="/dashboard/abogado"  element={<DashboardAbogado />} />
-        <Route path="/login" element={<div style={{padding:'120px 24px',textAlign:'center',color:'var(--text-muted)'}}>Login — Próximamente</div>} />
-      </Routes>
-    </BrowserRouter>
+          {/* ── Rutas protegidas — redirigen a /login si no hay sesión ── */}
+          <Route
+            path="/dashboard/usuario"
+            element={
+              <PrivateRoute role="ciudadano">
+                <DashboardUsuario />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dashboard/abogado"
+            element={
+              <PrivateRoute role="abogado">
+                <DashboardAbogado />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
 

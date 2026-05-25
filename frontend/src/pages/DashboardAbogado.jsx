@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, Bell, Briefcase, ChevronDown,
   ChevronRight, CheckCircle2, AlertCircle, Clock, FileText,
@@ -7,6 +7,7 @@ import {
   Target, Calendar, DollarSign, Shield,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
+import { useAuth } from '../context/AuthContext'
 
 /* ── Semáforo dinámico ── */
 const HOY = new Date('2026-05-24')
@@ -149,12 +150,20 @@ const COMPLEJIDAD_STYLE = {
 
 /* ── Componente ── */
 export default function DashboardAbogado() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [section, setSection]   = useState('dashboard')
   const [sidebar, setSidebar]   = useState(false)
   const [expanded, setExpanded] = useState(null)
 
   const leadsDisponibles = LEADS.filter(l => l.estado === 'disponible')
   const alertasUrgentes  = ALERTAS_VENC.filter(a => diasHasta(a.vence) <= 3)
+
+  const nombreAbogado   = user?.nombre || ABOGADO.nombre
+  const tpAbogado       = user?.tp     || ABOGADO.tp
+  const inicialesAbogado = nombreAbogado.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
 
   const nav = [
     { id: 'dashboard', label: 'Panel general',      icon: <LayoutDashboard size={17} /> },
@@ -237,13 +246,13 @@ export default function DashboardAbogado() {
         <div className="px-3 pb-4 border-t border-d-border pt-3">
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
             <div className="w-9 h-9 rounded-full bg-brand-dim border border-brand-ring flex items-center justify-center text-sm font-bold text-brand shrink-0">
-              {ABOGADO.initials}
+              {inicialesAbogado}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-d-primary truncate">{ABOGADO.nombre}</p>
-              <p className="text-xs text-d-muted">{ABOGADO.tarjeta}</p>
+              <p className="text-sm font-semibold text-d-primary truncate">{nombreAbogado}</p>
+              <p className="text-xs text-d-muted">{tpAbogado}</p>
             </div>
-            <button className="text-d-muted hover:text-bad transition-colors">
+            <button onClick={handleLogout} className="text-d-muted hover:text-bad transition-colors" title="Cerrar sesión">
               <LogOut size={15} />
             </button>
           </div>
@@ -277,7 +286,7 @@ export default function DashboardAbogado() {
             <div className="space-y-6 animate-fade-up">
               <div>
                 <h1 className="font-display text-2xl text-d-primary">
-                  Bienvenido, {ABOGADO.nombre.split(' ').slice(-1)[0]} ⚖️
+                  Bienvenido, {nombreAbogado.split(' ').slice(-1)[0]} ⚖️
                 </h1>
                 <p className="text-d-muted text-sm mt-0.5">{ABOGADO.ciudad} · {ABOGADO.especialidad}</p>
               </div>

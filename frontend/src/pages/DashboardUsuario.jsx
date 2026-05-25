@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, FileText, Bell, Plus, ArrowRight,
   Download, Eye, CheckCircle2, AlertCircle, Clock, Zap,
   LogOut, Menu, X, Shield, ChevronRight, Lock,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
+import { useAuth } from '../context/AuthContext'
 
 /* ── Fecha base del sistema ── */
 const HOY = new Date('2026-05-24')
@@ -156,10 +157,18 @@ const PROGRESO_BY_ESTADO = { pendiente: 0, activo: 2, resuelto: 3 }
 
 /* ── Componente ── */
 export default function DashboardUsuario() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [section, setSection] = useState('resumen')
   const [sidebar, setSidebar] = useState(false)
 
   const alertasNoLeidas = ALERTAS.filter(a => !a.leida).length
+
+  // Usa el nombre real del usuario logueado, con fallback al mock
+  const nombreUsuario = user?.nombre || USUARIO.nombre
+  const inicialesUsuario = nombreUsuario.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
 
   const nav = [
     { id: 'resumen',  label: 'Resumen',       icon: <LayoutDashboard size={17} /> },
@@ -228,13 +237,13 @@ export default function DashboardUsuario() {
         <div className="px-3 pb-4 border-t border-d-border pt-3">
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
             <div className="w-9 h-9 rounded-full bg-brand-dim border border-brand-ring flex items-center justify-center text-sm font-bold text-brand shrink-0">
-              {USUARIO.initials}
+              {inicialesUsuario}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-d-primary truncate">{USUARIO.nombre}</p>
+              <p className="text-sm font-semibold text-d-primary truncate">{nombreUsuario}</p>
               <p className="text-xs text-d-muted">Plan {USUARIO.plan}</p>
             </div>
-            <button className="text-d-muted hover:text-bad transition-colors">
+            <button onClick={handleLogout} className="text-d-muted hover:text-bad transition-colors" title="Cerrar sesión">
               <LogOut size={15} />
             </button>
           </div>
@@ -271,7 +280,7 @@ export default function DashboardUsuario() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h1 className="font-display text-2xl text-d-primary">
-                    Hola, {USUARIO.nombre.split(' ')[0]} 👋
+                    Hola, {nombreUsuario.split(' ')[0]} 👋
                   </h1>
                   <p className="text-d-muted text-sm mt-1">Aquí tienes el estado de tus casos.</p>
                 </div>
