@@ -5,3 +5,6 @@ frontend/dist/
 __pycache__/
 *.pyc
 .env.local
+
+# Nunca trackear vercel.json en la raiz — Root Directory esta configurado en el panel de Vercel
+/vercel.json
