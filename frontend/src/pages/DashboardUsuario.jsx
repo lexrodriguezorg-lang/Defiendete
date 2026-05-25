@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, FileText, Bell, Plus, ArrowRight,
@@ -186,18 +185,22 @@ export default function DashboardUsuario() {
 
       {/* ── SIDEBAR ── */}
       <aside
-        style={{ background: '#141720', zIndex: 9999 }}
-        className={`
-        fixed inset-y-0 left-0 w-64 border-r border-d-border flex flex-col
-        transition-transform duration-300 lg:translate-x-0 lg:static
-        ${sidebar ? 'translate-x-0' : '-translate-x-full'}
-      `}>
+        className="flex flex-col border-r border-d-border shrink-0 lg:w-64"
+        style={{
+          position: 'fixed', top: 0, bottom: 0, left: 0, width: 256,
+          background: '#141720',
+          zIndex: 50,
+          transform: sidebar ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s ease',
+        }}
+      >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-d-border shrink-0">
           <Logo size={32} showText={true} />
           <button
-            className="lg:hidden p-2 -mr-1 text-d-muted hover:text-d-primary"
+            className="lg:hidden p-2 -mr-1 text-d-muted"
             onClick={() => setSidebar(false)}
+            style={{ cursor: 'pointer' }}
           >
             <X size={22} />
           </button>
@@ -260,17 +263,16 @@ export default function DashboardUsuario() {
       </aside>
 
       {/* Overlay mobile */}
-      {sidebar && createPortal(
+      {sidebar && (
         <div
           onClick={() => setSidebar(false)}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            zIndex: 9998,
-            background: 'rgba(0,0,0,0.72)',
+            zIndex: 49,
+            background: 'rgba(0,0,0,0.7)',
             cursor: 'pointer',
           }}
-        />,
-        document.body
+        />
       )}
 
       {/* ── MAIN ── */}

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Menu, X, LogOut } from 'lucide-react'
 import Logo from '../ui/Logo'
 import { useAuth } from '../../context/AuthContext'
@@ -9,6 +9,9 @@ const Navbar = () => {
   const [open, setOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => { setOpen(false) }, [location.pathname])
 
   const links = [
     { to: '/#como-funciona', label: '¿Cómo funciona?' },
