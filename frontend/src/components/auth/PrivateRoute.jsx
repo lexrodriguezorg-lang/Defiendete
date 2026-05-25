@@ -8,7 +8,17 @@ import { useAuth } from '../../context/AuthContext'
 const PrivateRoute = ({ children, role }) => {
   const { isAuthenticated, user, loading } = useAuth()
 
-  if (loading) return null
+  // Muestra un loader mínimo mientras AuthContext hidrata desde localStorage
+  // (evita la pantalla completamente oscura/bloqueada)
+  if (loading) return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: '#0E1117', color: '#22D3A0', fontSize: 14,
+      fontFamily: 'sans-serif', letterSpacing: 1,
+    }}>
+      Cargando…
+    </div>
+  )
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, FileText, Bell, Plus, ArrowRight,
@@ -162,6 +162,9 @@ export default function DashboardUsuario() {
   const [section, setSection] = useState('resumen')
   const [sidebar, setSidebar] = useState(false)
 
+  // Fuerza sidebar cerrado al montar (evita el overlay que bloquea tras login)
+  useEffect(() => { setSidebar(false) }, [])
+
   const alertasNoLeidas = ALERTAS.filter(a => !a.leida).length
 
   // Usa el nombre real del usuario logueado, con fallback al mock
@@ -181,9 +184,11 @@ export default function DashboardUsuario() {
     <div className="flex h-screen bg-d-base overflow-hidden font-body">
 
       {/* ── SIDEBAR ── */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-d-surface border-r border-d-border flex flex-col
-        transition-transform duration-250 lg:translate-x-0 lg:static lg:z-auto
+      <aside
+        style={{ background: '#141720' }}
+        className={`
+        fixed inset-y-0 left-0 z-50 w-64 border-r border-d-border flex flex-col
+        transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto
         ${sidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Logo */}
@@ -252,7 +257,7 @@ export default function DashboardUsuario() {
 
       {/* Overlay mobile */}
       {sidebar && (
-        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebar(false)} />
+        <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setSidebar(false)} />
       )}
 
       {/* ── MAIN ── */}
