@@ -24,118 +24,236 @@ const URGENCY_LABELS = {
   baja:    { label: '✅ Urgencia baja',    color: '#22D3A0' },
 }
 
+/* ── Estilos del badge por nivel de complejidad (solo colores, sin precios) ── */
 const COMPLEXITY_CONFIG = {
-  baja: {
-    label: 'Complejidad baja',
-    color: '#22D3A0',
-    bgColor: 'rgba(34,211,160,0.08)',
-    borderColor: 'rgba(34,211,160,0.25)',
-    descripcion: 'Solicitud estándar que no requiere argumentación jurídica extensa.',
-    precio_label: '$30.000 COP',
-    precio_note: 'pago único',
-  },
-  media: {
-    label: 'Complejidad media',
-    color: '#F4A72B',
-    bgColor: 'rgba(244,167,43,0.08)',
-    borderColor: 'rgba(244,167,43,0.25)',
-    descripcion: 'Requiere estructuración detallada de hechos y verificación de artículos legales.',
-    precio_label: '$65.000 COP',
-    precio_note: 'pago único',
-  },
-  alta: {
-    label: 'Complejidad alta',
-    color: '#00B4A0',
-    bgColor: 'rgba(0,180,160,0.08)',
-    borderColor: 'rgba(0,180,160,0.3)',
-    descripcion: 'Documento de fondo con jurisprudencia de altas cortes y argumentación constitucional.',
+  baja:  { label: 'Complejidad baja',  color: '#22D3A0', bgColor: 'rgba(34,211,160,0.08)',  borderColor: 'rgba(34,211,160,0.25)' },
+  media: { label: 'Complejidad media', color: '#F4A72B', bgColor: 'rgba(244,167,43,0.08)',  borderColor: 'rgba(244,167,43,0.25)' },
+  alta:  { label: 'Complejidad alta',  color: '#00B4A0', bgColor: 'rgba(0,180,160,0.08)',   borderColor: 'rgba(0,180,160,0.3)'   },
+}
+
+/*
+ * inferCategoria(text) → string
+ * Mapea el texto libre a una categoría jurídica específica.
+ * El orden de evaluación importa: primero los más específicos.
+ */
+const inferCategoria = (text) => {
+  const s = text.toLowerCase()
+
+  // Salud / EPS / Tutela médica
+  if (['eps', 'cirugía', 'cirugia', 'salud', 'médico', 'medico',
+       'hospital', 'clínica', 'clinica', 'medicamento', 'operación', 'operacion',
+       'procedimiento', 'cita médica', 'cita medica'].some(p => s.includes(p)))
+    return 'tutela_salud'
+
+  // Arrendamiento — corte de servicios o conflicto con arrendador
+  if (['arrendador', 'arriendo', 'arrendamiento', 'arrendatario', 'inquilino'].some(p => s.includes(p)))
+    return 'arriendo'
+  if (['cortó el agua', 'corto el agua', 'cortó la luz', 'corto la luz',
+       'sin agua', 'sin luz', 'sin servicios'].some(p => s.includes(p)))
+    return 'arriendo'
+
+  // Custodia / familia
+  if (['custodia', 'hijo', 'hija', 'menor', 'visita', 'régimen de visitas',
+       'progenitor', 'pareja no me deja'].some(p => s.includes(p)))
+    return 'custodia'
+
+  // Acoso laboral (antes que laboral general para no confundirse)
+  if (['acoso', 'hostigamiento', 'maltrato', 'grita', 'humilla',
+       'discrimina', 'amenaza delante'].some(p => s.includes(p)))
+    return 'acoso_laboral'
+
+  // Laboral general — despido, liquidación, salarios
+  if (['despido', 'despedido', 'liquidación', 'liquidacion', 'salario',
+       'empleador', 'empresa', 'trabajo', 'contrato', 'prestaciones',
+       'jefe', 'patrón', 'patron', 'empleado', 'contrato indefinido'].some(p => s.includes(p)))
+    return 'laboral'
+
+  // Consumidor / estafa / garantías
+  if (['estafa', 'fraude', 'garantía', 'garantia', 'compra', 'producto',
+       'devolución', 'devolucion', 'entrega', 'pagué', 'pague',
+       'nunca recibí', 'nunca recibi', 'internet'].some(p => s.includes(p)))
+    return 'consumidor'
+
+  return 'generico'
+}
+
+/*
+ * MOCK_BY_CATEGORIA — respuesta completa por categoría jurídica.
+ * Cada entrada incluye complejidad, precio y diagnóstico específico.
+ * Espeja la estructura que devolverá el backend real (campo `categoria` incluido).
+ */
+const MOCK_BY_CATEGORIA = {
+
+  tutela_salud: {
+    complejidad: 'alta',
     precio_label: '$120.000 COP',
     precio_note: 'pago único',
-  },
-}
-
-const inferComplexidad = (story) => {
-  const s = story.toLowerCase()
-  const patronesAlta = [
-    'tutela', 'custodia', 'hijo', 'cirugía', 'cirugia',
-    'cortó el agua', 'cortó la luz', 'corto el agua', 'corto la luz',
-    'violencia', 'amenaza', 'acción popular', 'minuta',
-    'arrendador cortó', 'arrendador corto', 'contrato comercial', 'amparo',
-  ]
-  const patronesMedia = [
-    'despido', 'despedido', 'liquidación', 'liquidacion', 'eps', 'acoso',
-    'servicios públicos', 'servicios publicos', 'salario', 'prestaciones',
-    'contrato indefinido', 'horas extra', 'arrendamiento', 'jefe',
-    'empleador', 'empresa', 'trabajo',
-  ]
-  if (patronesAlta.some(p => s.includes(p))) return 'alta'
-  if (patronesMedia.some(p => s.includes(p))) return 'media'
-  return 'baja'
-}
-
-const MOCK_BY_COMPLEXITY = {
-  alta: {
-    rama: 'constitucional',
+    rama: 'Constitucional',
     urgencia: 'alta',
     triage_result: {
       clasificacion: {
-        rama_derecho: 'constitucional',
-        sub_categoria: 'Acción de tutela por vulneración de derechos fundamentales',
-        urgencia: 'alta',
+        rama_derecho: 'Derecho Constitucional',
+        sub_categoria: 'Acción de Tutela — vulneración del derecho a la salud',
       },
       derechos_vulnerados: [
-        {
-          derecho: 'Derecho a la salud y la vida digna',
-          norma: 'Art. 49 y 11 — Constitución Política',
-          explicacion: 'La negación injustificada de un procedimiento médico ordenado vulnera directamente el derecho fundamental a la salud.',
-        },
-        {
-          derecho: 'Derecho de petición y respuesta oportuna',
-          norma: 'Art. 23 Const. + Ley 1755/2015',
-          explicacion: 'Las entidades de salud tienen la obligación de responder solicitudes médicas dentro de los plazos legales establecidos.',
-        },
+        { derecho: 'Derecho a la salud y la vida digna', norma: 'Art. 49 y 11 — Constitución Política', explicacion: 'La negación injustificada de un procedimiento médico ordenado vulnera directamente el derecho fundamental a la salud.' },
+        { derecho: 'Derecho de petición y respuesta oportuna', norma: 'Art. 23 Const. + Ley 1755/2015', explicacion: 'Las entidades de salud tienen la obligación de responder solicitudes médicas dentro de los plazos legales establecidos.' },
       ],
       diagnostico: {
         resumen: 'Tienes un caso sólido para interponer una Acción de Tutela. Cuando una EPS niega un procedimiento médico ordenado por un profesional de la salud, vulnera directamente el derecho fundamental a la salud protegido por la Constitución Política.\n\nLa tutela es el mecanismo constitucional más efectivo para estos casos — el juez tiene un plazo máximo de 10 días hábiles para fallar. En casos de urgencia médica comprobada, la tasa de éxito es superior al 90% según jurisprudencia de la Corte Constitucional.',
         opciones: [
           { accion: 'Acción de Tutela ante juzgado civil', descripcion: 'Mecanismo constitucional para proteger derechos fundamentales como la salud. Respuesta obligatoria en 10 días hábiles. Puedes presentarla sin abogado.' },
-          { accion: 'Queja ante Superintendencia de Salud', descripcion: 'Proceso paralelo que genera presión institucional sobre la EPS y puede lograr una autorización antes del fallo de la tutela.' },
+          { accion: 'Queja ante Superintendencia Nacional de Salud', descripcion: 'Proceso paralelo que genera presión institucional sobre la EPS y puede lograr la autorización antes del fallo de la tutela.' },
         ],
       },
     },
   },
-  media: {
-    rama: 'laboral',
+
+  arriendo: {
+    complejidad: 'media',
+    precio_label: '$180.000 COP',
+    precio_note: 'pago único',
+    rama: 'Civil / Policivo',
     urgencia: 'alta',
     triage_result: {
-      clasificacion: { rama_derecho: 'laboral', sub_categoria: 'Despido sin justa causa — liquidación pendiente', urgencia: 'alta' },
+      clasificacion: {
+        rama_derecho: 'Derecho Civil / Policivo — Arrendamientos',
+        sub_categoria: 'Perturbación a la tenencia pacífica — vía de hecho del arrendador',
+      },
+      derechos_vulnerados: [
+        { derecho: 'Derecho a la vivienda digna y tenencia pacífica', norma: 'Art. 51 Const. + Ley 820/2003 (Ley de Arrendamientos)', explicacion: 'El arrendador no puede interrumpir los servicios públicos del inmueble arrendado bajo ninguna circunstancia. Hacerlo constituye una vía de hecho sancionable.' },
+        { derecho: 'Protección contra perturbación a la posesión', norma: 'Art. 988 Código Civil + Ley 57/1887', explicacion: 'El arrendatario tiene derecho a la tenencia pacífica del inmueble. Cualquier acto de perturbación da lugar a querella policiva inmediata.' },
+      ],
+      diagnostico: {
+        resumen: 'Se evidencia una presunta vía de hecho por parte del arrendador al cortar los servicios públicos, lo cual vulnera la tenencia pacífica del inmueble.\n\nEsta conducta está expresamente prohibida por la Ley 820 de 2003. El arrendador incurre en una infracción que puede acarrear sanciones policivas y civiles. Tienes derecho a exigir el restablecimiento inmediato de los servicios y a reclamar los perjuicios causados.',
+        opciones: [
+          { accion: 'Querella policiva por perturbación a la posesión', descripcion: 'Ante la Inspección de Policía o Alcaldía. Proceso rápido que ordena al arrendador restablecer los servicios de forma inmediata bajo apercibimiento de multa.' },
+          { accion: 'Acción de restitución de inmueble arrendado', descripcion: 'Si el conflicto persiste, puedes iniciar proceso ante el juzgado civil municipal. El juez puede ordenar medidas cautelares urgentes y reconocer perjuicios.' },
+        ],
+      },
+    },
+  },
+
+  laboral: {
+    complejidad: 'media',
+    precio_label: '$65.000 COP',
+    precio_note: 'pago único',
+    rama: 'Laboral',
+    urgencia: 'alta',
+    triage_result: {
+      clasificacion: {
+        rama_derecho: 'Derecho Laboral',
+        sub_categoria: 'Despido sin justa causa — liquidación y prestaciones pendientes',
+      },
       derechos_vulnerados: [
         { derecho: 'Derecho al trabajo y estabilidad laboral', norma: 'Art. 25 — Constitución Política', explicacion: 'El despido sin justa causa sin pago oportuno de la liquidación vulnera el derecho fundamental al trabajo.' },
         { derecho: 'Prestaciones sociales obligatorias', norma: 'Art. 249-252 — Código Sustantivo del Trabajo', explicacion: 'Cesantías, intereses sobre cesantías, prima de servicios y vacaciones deben pagarse al terminar el contrato.' },
       ],
       diagnostico: {
-        resumen: 'Tienes un caso claro de despido sin justa causa con incumplimiento en el pago de la liquidación. En Colombia, cuando un empleador termina un contrato sin justa causa tiene la obligación legal de pagar la liquidación completa más una indemnización proporcional al tiempo de servicio.\n\nEl empleador tiene 15 días hábiles para pagar la liquidación desde la terminación. Después de ese plazo corren intereses moratorios. Con 3 o más años de antigüedad, tienes derecho a cesantías, intereses sobre cesantías, prima, vacaciones e indemnización por despido.',
+        resumen: 'Tienes un caso claro de despido sin justa causa con incumplimiento en el pago de la liquidación. El empleador tiene 15 días hábiles para pagar la liquidación desde la terminación del contrato. Después de ese plazo, corren intereses moratorios a su cargo.\n\nCon 3 o más años de antigüedad, tienes derecho a cesantías, intereses sobre cesantías, prima, vacaciones e indemnización por despido sin justa causa. El valor de la indemnización depende del salario y el tiempo trabajado.',
         opciones: [
-          { accion: 'Carta de cobro + Queja ante Ministerio de Trabajo', descripcion: 'Carta formal exigiendo el pago en plazo determinado y, en paralelo, radicación de queja en MinTrabajo para generar presión institucional.' },
-          { accion: 'Demanda verbal sumaria ante juzgado laboral', descripcion: 'Para montos menores a 20 SMLMV puedes demandar directamente sin necesidad de abogado. El juzgado convoca a audiencia.' },
+          { accion: 'Carta de cobro + Queja ante Ministerio de Trabajo', descripcion: 'Carta formal exigiendo el pago en plazo determinado y radicación de queja en MinTrabajo para generar presión institucional.' },
+          { accion: 'Demanda verbal sumaria ante juzgado laboral', descripcion: 'Para montos menores a 20 SMLMV puedes demandar directamente sin abogado. El juzgado convoca a audiencia de conciliación.' },
         ],
       },
     },
   },
-  baja: {
-    rama: 'administrativo',
-    urgencia: 'media',
+
+  custodia: {
+    complejidad: 'alta',
+    precio_label: '$120.000 COP',
+    precio_note: 'pago único',
+    rama: 'Familia',
+    urgencia: 'critica',
     triage_result: {
-      clasificacion: { rama_derecho: 'administrativo', sub_categoria: 'Derecho de petición — reclamación por incumplimiento', urgencia: 'media' },
+      clasificacion: {
+        rama_derecho: 'Derecho de Familia',
+        sub_categoria: 'Regulación de visitas y custodia — protección del interés superior del menor',
+      },
       derechos_vulnerados: [
-        { derecho: 'Derecho de petición', norma: 'Art. 23 Const. + Ley 1755/2015', explicacion: 'Toda persona puede presentar solicitudes ante entidades y debe recibir respuesta dentro de los plazos establecidos (15 días hábiles).' },
-        { derecho: 'Protección al consumidor', norma: 'Ley 1480/2011 — Estatuto del Consumidor, Art. 7', explicacion: 'El incumplimiento de garantía o entrega de productos genera responsabilidad legal para el vendedor o proveedor.' },
+        { derecho: 'Derecho del menor a mantener relaciones con ambos progenitores', norma: 'Art. 44 Const. + Ley 1098/2006 (Código de Infancia)', explicacion: 'Los menores de edad tienen el derecho fundamental a mantener contacto y relación con ambos padres, salvo decisión judicial en contrario.' },
+        { derecho: 'Derecho de custodia y visitas del progenitor', norma: 'Art. 253 Código Civil + Ley 1361/2009', explicacion: 'El progenitor sin custodia tiene derecho a un régimen de visitas. Su incumplimiento puede configurar el delito de maltrato por descuido.' },
       ],
       diagnostico: {
-        resumen: 'Tienes fundamentos sólidos para exigir el cumplimiento de la obligación. La ley colombiana protege al consumidor y establece plazos claros para que los vendedores respondan a reclamaciones por incumplimiento en garantías o entregas.\n\nEl primer paso es un Derecho de Petición formal que obliga legalmente a responder en 15 días hábiles. Si no responden o niegan la reclamación sin fundamento, puedes acudir a la Superintendencia de Industria y Comercio (SIC), que tiene facultades sancionatorias.',
+        resumen: 'La negativa injustificada a permitir el contacto entre el menor y el otro progenitor puede configurar maltrato infantil por afectación emocional, según el Código de la Infancia y la Adolescencia (Ley 1098/2006).\n\nEl Juez de Familia puede regular el régimen de visitas de forma urgente. En casos de negativa reiterada, también procede la Acción de Tutela para proteger los derechos fundamentales del menor, con fallo en 10 días hábiles.',
         opciones: [
-          { accion: 'Derecho de petición formal', descripcion: 'Documento legal que obliga a la empresa a responder en 15 días hábiles. Primer paso necesario antes de cualquier otro recurso.' },
-          { accion: 'Queja ante la Superintendencia de Industria y Comercio', descripcion: 'Si no responden, la SIC puede imponer sanciones económicas y ordenar la devolución del dinero o entrega del producto.' },
+          { accion: 'Demanda de regulación de visitas ante Juez de Familia', descripcion: 'El Juez establece un régimen de visitas con fechas y condiciones precisas. El proceso puede resolverse en 3-6 meses con medidas provisionales inmediatas.' },
+          { accion: 'Acción de Tutela por vulneración de derechos del menor', descripcion: 'Cuando la negativa es reiterada y urgente. El juez falla en 10 días hábiles y puede ordenar visitas inmediatas como medida provisional.' },
+        ],
+      },
+    },
+  },
+
+  acoso_laboral: {
+    complejidad: 'media',
+    precio_label: '$65.000 COP',
+    precio_note: 'pago único',
+    rama: 'Laboral',
+    urgencia: 'alta',
+    triage_result: {
+      clasificacion: {
+        rama_derecho: 'Derecho Laboral — Acoso Laboral',
+        sub_categoria: 'Conductas constitutivas de acoso laboral — Ley 1010/2006',
+      },
+      derechos_vulnerados: [
+        { derecho: 'Protección contra el acoso laboral', norma: 'Ley 1010/2006 — Ley de Acoso Laboral', explicacion: 'La Ley 1010 define y sanciona el acoso laboral en todas sus formas, incluyendo el maltrato verbal, la persecución y la discriminación en el trabajo.' },
+        { derecho: 'Derecho a condiciones dignas de trabajo', norma: 'Art. 25 Const. + Art. 57 Código Sustantivo del Trabajo', explicacion: 'El empleador tiene la obligación legal de garantizar un ambiente de trabajo digno y respetuoso. El maltrato o las amenazas constituyen incumplimiento grave.' },
+      ],
+      diagnostico: {
+        resumen: 'Las conductas que describes configuran acoso laboral según la Ley 1010 de 2006. Esta ley protege a todos los trabajadores contra conductas que atentan contra su dignidad, como el maltrato verbal, las amenazas y la humillación pública.\n\nEl primer paso obligatorio es radicar una queja formal ante el Comité de Convivencia Laboral de la empresa (debe existir en toda empresa con más de 10 trabajadores). Si la empresa no actúa, procede la denuncia ante el Ministerio de Trabajo o el Inspector Laboral.',
+        opciones: [
+          { accion: 'Queja ante el Comité de Convivencia Laboral', descripcion: 'Obligatorio como primer paso legal. La empresa tiene 5 días hábiles para convocar al comité. Queda constancia formal del acoso denunciado.' },
+          { accion: 'Denuncia ante el Ministerio de Trabajo', descripcion: 'Si el empleador no actúa, el Inspector de Trabajo puede imponer multas de 2 a 10 SMLMV y ordenar medidas correctivas inmediatas.' },
+        ],
+      },
+    },
+  },
+
+  consumidor: {
+    complejidad: 'baja',
+    precio_label: '$30.000 COP',
+    precio_note: 'pago único',
+    rama: 'Consumidor / Administrativo',
+    urgencia: 'media',
+    triage_result: {
+      clasificacion: {
+        rama_derecho: 'Derecho del Consumidor',
+        sub_categoria: 'Incumplimiento de contrato de compraventa — protección al consumidor',
+      },
+      derechos_vulnerados: [
+        { derecho: 'Protección al consumidor — garantía de entrega', norma: 'Ley 1480/2011 — Estatuto del Consumidor, Art. 7', explicacion: 'El vendedor está obligado a entregar el producto en las condiciones y plazos pactados. El incumplimiento genera responsabilidad legal directa.' },
+        { derecho: 'Derecho de petición ante el vendedor', norma: 'Art. 23 Const. + Ley 1755/2015', explicacion: 'Puedes exigir formalmente una respuesta al vendedor. Tiene máximo 15 días hábiles para contestar.' },
+      ],
+      diagnostico: {
+        resumen: 'Tienes fundamentos sólidos para exigir la entrega del producto, la devolución del dinero o una compensación equivalente. La Ley 1480 de 2011 (Estatuto del Consumidor) protege a los compradores frente a incumplimientos en entregas y garantías, incluyendo compras por internet.\n\nEl primer paso es un Derecho de Petición formal que obliga al vendedor a responder en 15 días hábiles. Si no responden o niegan la reclamación sin fundamento, la Superintendencia de Industria y Comercio (SIC) puede sancionar y ordenar la devolución del dinero.',
+        opciones: [
+          { accion: 'Derecho de petición formal al vendedor', descripcion: 'Documento legal que obliga al vendedor a responder en 15 días hábiles. Es el primer paso antes de acudir a cualquier entidad.' },
+          { accion: 'Queja ante la Superintendencia de Industria y Comercio (SIC)', descripcion: 'La SIC puede imponer sanciones económicas y ordenar la devolución del dinero o la entrega del producto por medida cautelar.' },
+        ],
+      },
+    },
+  },
+
+  generico: {
+    complejidad: 'baja',
+    precio_label: '$30.000 COP',
+    precio_note: 'pago único',
+    rama: 'General',
+    urgencia: 'media',
+    triage_result: {
+      clasificacion: {
+        rama_derecho: 'Asesoría Legal Preliminar',
+        sub_categoria: 'Evaluación inicial — se requiere análisis más detallado del caso',
+      },
+      derechos_vulnerados: [
+        { derecho: 'Derecho de petición', norma: 'Art. 23 — Constitución Política + Ley 1755/2015', explicacion: 'Toda persona tiene derecho a elevar peticiones respetuosas a las autoridades y particulares, y a recibir respuesta oportuna.' },
+        { derecho: 'Acceso a la administración de justicia', norma: 'Art. 229 — Constitución Política', explicacion: 'Toda persona tiene derecho a acceder a la justicia para la protección de sus derechos e intereses legítimos.' },
+      ],
+      diagnostico: {
+        resumen: 'Con base en la descripción proporcionada, tu caso requiere una evaluación jurídica más detallada para identificar la rama del derecho aplicable y las acciones legales precisas.\n\nLo que podemos confirmar es que existen mecanismos legales disponibles para proteger tus derechos. Prepararemos un análisis personalizado con los pasos concretos a seguir, los documentos necesarios y los plazos legales relevantes para tu situación.',
+        opciones: [
+          { accion: 'Asesoría legal personalizada', descripcion: 'Análisis detallado de tu caso con identificación de mecanismos legales adecuados y plan de acción paso a paso con plazos reales.' },
+          { accion: 'Derecho de petición preliminar', descripcion: 'En muchos casos, el primer paso efectivo es formalizar tu reclamación mediante un derecho de petición ante la entidad o persona involucrada.' },
         ],
       },
     },
@@ -193,15 +311,22 @@ const Caso = () => {
       })
       if (!res.ok) throw new Error('API no disponible')
       const data = await res.json()
-      apiResult = { ...data, complejidad: data.complejidad || inferComplexidad(storyText) }
+      // El backend devolverá `categoria` cuando esté conectado; mientras tanto inferimos
+      const categoria = data.categoria || inferCategoria(storyText)
+      const mockBase  = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
+      apiResult = { ...mockBase, ...data, categoria }
     } catch {
-      const complejidad = inferComplexidad(storyText)   // ← storyText, nunca el estado viejo
-      const mock = MOCK_BY_COMPLEXITY[complejidad]
+      // Fallback 100% frontend: infiere categoría del texto y devuelve mock específico
+      const categoria = inferCategoria(storyText)
+      const mock = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
       apiResult = {
         success: true,
-        complejidad,
-        rama:         mock.rama,
-        urgencia:     mock.urgencia,
+        categoria,
+        complejidad:   mock.complejidad,
+        precio_label:  mock.precio_label,
+        precio_note:   mock.precio_note,
+        rama:          mock.rama,
+        urgencia:      mock.urgencia,
         triage_result: mock.triage_result,
         payment_required_for: ['estrategia_completa', 'documentos', 'seguimiento'],
       }
@@ -403,6 +528,9 @@ const Caso = () => {
         {step === 'result' && result && (() => {
           const compConfig = COMPLEXITY_CONFIG[result.complejidad] || COMPLEXITY_CONFIG.media
           const urgConfig  = URGENCY_LABELS[result.urgencia]
+          // El precio viene del mock específico de categoría, no del nivel genérico
+          const precioLabel = result.precio_label || compConfig.precio_label || '—'
+          const precioNote  = result.precio_note  || 'pago único'
 
           return (
             <div className="caso-result container-narrow animate-fade-up">
@@ -415,7 +543,7 @@ const Caso = () => {
                 </div>
               </div>
 
-              {/* Cotización dinámica */}
+              {/* Cotización dinámica — precio por categoría, no por nivel genérico */}
               <div className="result-cotizacion">
                 <div className="cotizacion-top">
                   <span
@@ -424,15 +552,17 @@ const Caso = () => {
                   >
                     {compConfig.label}
                   </span>
-                  <p className="cotizacion-descripcion">{compConfig.descripcion}</p>
+                  <p className="cotizacion-descripcion">
+                    {result.triage_result?.clasificacion?.rama_derecho || result.rama}
+                  </p>
                 </div>
                 <div className="cotizacion-price-row">
                   <div className="cotizacion-price-info">
                     <span className="cotizacion-label">Estrategia completa + Documentos</span>
                     <div className="cotizacion-amount-row">
                       <DollarSign size={18} className="cotizacion-dollar" />
-                      <span className="cotizacion-amount">{compConfig.precio_label}</span>
-                      <span className="cotizacion-note">· {compConfig.precio_note}</span>
+                      <span className="cotizacion-amount">{precioLabel}</span>
+                      <span className="cotizacion-note">· {precioNote}</span>
                     </div>
                   </div>
                   <div className="cotizacion-tag"><span>Cotización de tu caso</span></div>
@@ -444,7 +574,7 @@ const Caso = () => {
                 <div className="result-meta">
                   <div className="result-meta-item">
                     <span className="meta-label">Rama del derecho</span>
-                    <span className="meta-value meta-value--rama">{result.rama?.toUpperCase()}</span>
+                    <span className="meta-value meta-value--rama">{result.rama}</span>
                   </div>
                   <div className="result-meta-item">
                     <span className="meta-label">Urgencia</span>
@@ -500,8 +630,8 @@ const Caso = () => {
                   <h3>Estrategia completa + Documentos listos para radicar</h3>
                   <p>Plan de acción paso a paso, artículos y sentencias verificadas, plazos exactos y documentos listos para radicar.</p>
                   <div className="result-cta__price">
-                    <span className="price-amount">{compConfig.precio_label}</span>
-                    <span className="price-note">· {compConfig.precio_note} · sin abogado requerido</span>
+                    <span className="price-amount">{precioLabel}</span>
+                    <span className="price-note">· {precioNote} · sin abogado requerido</span>
                   </div>
                 </div>
                 <div className="result-cta__actions">
