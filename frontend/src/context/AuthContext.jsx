@@ -8,7 +8,7 @@ const DEMO_USERS = [
     email:    'ciudadano@demo.com',
     password: 'demo123',
     role:     'ciudadano',
-    nombre:   'Carmen Rodríguez',
+    nombre:   'Lex Rodríguez',
   },
   {
     email:    'abogado@demo.com',

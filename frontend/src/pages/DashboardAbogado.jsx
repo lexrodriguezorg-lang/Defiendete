@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, Bell, Briefcase, ChevronDown,
@@ -264,16 +265,18 @@ export default function DashboardAbogado() {
         </div>
       </aside>
 
-      {/* Overlay mobile — cierra el sidebar al tocar fuera */}
-      {sidebar && (
+      {/* Overlay mobile — portal a body para evitar cualquier conflicto de z-index/overflow */}
+      {sidebar && createPortal(
         <div
           onClick={() => setSidebar(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 45,
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 45,
             background: 'rgba(0,0,0,0.72)',
             cursor: 'pointer',
           }}
-        />
+        />,
+        document.body
       )}
 
       {/* ── MAIN ── */}
