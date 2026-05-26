@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   ArrowRight, ArrowLeft, CheckCircle2, DollarSign,
-  Scale, Shield, Lock,
+  Scale, Shield, Lock, CreditCard,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 import './Caso.css'
@@ -271,11 +271,13 @@ const LOADER_MSGS = [
 /* ── Componente principal ── */
 const Caso = () => {
   const { user, isAuthenticated } = useAuth()
+  const navigate = useNavigate()
   const [step, setStep]       = useState('form')
   const [story, setStory]     = useState('')
   const [result, setResult]   = useState(null)
   const [leadData, setLeadData] = useState({ nombre: '', contacto: '' })
   const [loadingMsg, setLoadingMsg] = useState(0)
+  const [pagoMsg, setPagoMsg]  = useState(false)
 
   const canSubmit     = story.trim().length >= 30
   // Si hay sesión, el lead ya tiene nombre y email — no se requiere el form de captura
@@ -361,6 +363,16 @@ const Caso = () => {
     e.preventDefault()
     if (!canSubmitLead) return
     setStep('result')
+  }
+
+  /* CTA de compra — redirige a registro si no hay sesión; muestra info de pago si la hay */
+  const handleComprar = () => {
+    if (!isAuthenticated) {
+      navigate('/registro')
+      return
+    }
+    setPagoMsg(true)
+    // Cuando Wompi esté activo, aquí se abrirá el checkout
   }
 
   /* ── Indicador de progreso (4 pasos) ── */
@@ -646,13 +658,23 @@ const Caso = () => {
                   </div>
                 </div>
                 <div className="result-cta__actions">
-                  <button className="btn-cta">
-                    Obtener estrategia completa
-                    <ArrowRight size={18} />
-                  </button>
+                  {pagoMsg ? (
+                    <div className="pago-msg">
+                      <CreditCard size={16} />
+                      <div>
+                        <strong>Pago seguro con Wompi</strong>
+                        <span>La integración de pago estará activa en el lanzamiento. Te notificaremos.</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="btn-cta" onClick={handleComprar}>
+                      {isAuthenticated ? 'Obtener estrategia completa' : 'Crear cuenta y obtener estrategia'}
+                      <ArrowRight size={18} />
+                    </button>
+                  )}
                   <button
                     className="btn-ghost-sm"
-                    onClick={() => { setStep('form'); setResult(null); setLeadData({ nombre: '', contacto: '' }) }}
+                    onClick={() => { setStep('form'); setResult(null); setLeadData({ nombre: '', contacto: '' }); setPagoMsg(false) }}
                   >
                     <ArrowLeft size={14} />
                     Volver a editar

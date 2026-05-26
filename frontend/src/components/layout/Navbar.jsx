@@ -1,17 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Menu, X, LogOut } from 'lucide-react'
+import { Menu, X, LogOut, ChevronDown } from 'lucide-react'
 import Logo from '../ui/Logo'
 import { useAuth } from '../../context/AuthContext'
 import './Navbar.css'
 
 const Navbar = () => {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]           = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const userMenuRef = useRef(null)
 
   useEffect(() => { setOpen(false) }, [location.pathname])
+
+  /* Cierra el menú de usuario al hacer click fuera */
+  useEffect(() => {
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const links = [
     { to: '/#como-funciona', label: '¿Cómo funciona?' },
@@ -28,7 +41,8 @@ const Navbar = () => {
   const handleLogout = () => {
     logout()
     setOpen(false)
-    navigate('/login', { replace: true })
+    setUserMenuOpen(false)
+    navigate('/', { replace: true })
   }
 
   return (
@@ -50,11 +64,38 @@ const Navbar = () => {
         {/* Desktop actions */}
         <div className="navbar__actions">
           {isAuthenticated ? (
-            <>
-              <Link to={dashboardPath} className="btn-ghost">
-                Mi panel
-              </Link>
-            </>
+            <div className="navbar__user-menu" ref={userMenuRef}>
+              <button
+                className="navbar__user-btn"
+                onClick={() => setUserMenuOpen(v => !v)}
+              >
+                <div className="navbar__user-avatar">{initials}</div>
+                <span className="navbar__user-name">{user?.nombre?.split(' ')[0]}</span>
+                <ChevronDown size={14} className={`navbar__user-chevron ${userMenuOpen ? 'navbar__user-chevron--open' : ''}`} />
+              </button>
+              {userMenuOpen && (
+                <div className="navbar__user-dropdown">
+                  <div className="navbar__user-dropdown-header">
+                    <span className="nud-name">{user?.nombre}</span>
+                    <span className="nud-role">{user?.role === 'abogado' ? 'Abogado socio' : 'Ciudadano'}</span>
+                  </div>
+                  <Link
+                    to={dashboardPath}
+                    className="navbar__user-dropdown-item"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Mi panel
+                  </Link>
+                  <button
+                    className="navbar__user-dropdown-item navbar__user-dropdown-item--danger"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={14} />
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link to="/login" className="btn-ghost">
               Ingresar
