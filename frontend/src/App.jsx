@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import PrivateRoute from './components/auth/PrivateRoute'
+import GuestRoute from './components/auth/GuestRoute'
 import Navbar from './components/layout/Navbar'
 import Landing from './pages/Landing'
 import Caso from './pages/Caso'
@@ -30,8 +31,8 @@ const App = () => {
           <Route path="/caso"     element={<Caso />} />
           <Route path="/abogados" element={<><Navbar /><Abogados /></>} />
           <Route path="/dashboard" element={<DashboardRedirect />} />
-          <Route path="/login"    element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
+          <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
+          <Route path="/registro" element={<GuestRoute><Registro /></GuestRoute>} />
 
           {/* ── Rutas protegidas — redirigen a /login si no hay sesión ── */}
           <Route

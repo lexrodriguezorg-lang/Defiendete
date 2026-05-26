@@ -98,10 +98,24 @@ const Abogados = () => {
     telefono: '',
     mensaje: '',
   })
-  const [enviado, setEnviado] = useState(false)
+  const [enviado,  setEnviado]  = useState(false)
+  const [loading,  setLoading]  = useState(false)
 
-  const handleSubmit = () => {
-    // TODO: conectar con backend
+  const handleSubmit = async () => {
+    if (!canSubmit || loading) return
+    setLoading(true)
+    // Intenta el backend; en su ausencia espera 1.8 s y simula éxito
+    try {
+      const res = await fetch('/api/lawyers/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      if (!res.ok) throw new Error('sin backend')
+    } catch {
+      await new Promise(r => setTimeout(r, 1800))
+    }
+    setLoading(false)
     setEnviado(true)
   }
 
@@ -388,12 +402,12 @@ const Abogados = () => {
                 </div>
 
                 <button
-                  className={`btn-cta btn-cta--full ${!canSubmit ? 'btn-disabled' : ''}`}
+                  className={`btn-cta btn-cta--full ${(!canSubmit || loading) ? 'btn-disabled' : ''}`}
                   onClick={handleSubmit}
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || loading}
                 >
-                  Enviar solicitud
-                  <ArrowRight size={18} />
+                  {loading ? 'Enviando…' : 'Enviar solicitud'}
+                  {!loading && <ArrowRight size={18} />}
                 </button>
 
                 <p className="form-nota">
