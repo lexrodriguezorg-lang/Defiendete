@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Scale, FileText, Bell, Plus, ArrowRight,
   Download, Eye, CheckCircle2, AlertCircle, Clock, Zap,
-  LogOut, Menu, X, Shield, ChevronRight, Lock,
+  LogOut, Menu, X, Shield, ChevronRight, Lock, ExternalLink,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 import { useAuth } from '../context/AuthContext'
@@ -34,6 +35,21 @@ const CASOS = [
     proximo_paso: 'EPS debe responder — vence 28 may 2026',
     docs_count: 3,
     alertas: 1,
+    expediente: {
+      radicado: '11001400301220260012300',
+      despacho: 'Juzgado 12 Civil Municipal de Bogotá',
+      resumen: 'La EPS SaludTotal negó la cirugía ordenada por el médico tratante alegando que no está incluida en el plan de beneficios. Esto vulnera directamente el derecho fundamental a la salud. La acción de tutela fue admitida el 12 de mayo de 2026 y corre traslado a la EPS.',
+      derechos: [
+        { norma: 'Art. 49 Const.', texto: 'Derecho a la salud y la vida digna' },
+        { norma: 'Art. 11 Const.', texto: 'Derecho a la vida — negación de tratamiento urgente' },
+        { norma: 'Sentencia T-760/2008', texto: 'Marco general de protección al derecho a la salud' },
+      ],
+      estrategia: [
+        { paso: '1', accion: 'Tutela ante Juzgado 12 Civil Municipal', estado: 'done', desc: 'Admitida el 12 may 2026. Traslado corrido a SaludTotal.' },
+        { paso: '2', accion: 'EPS debe responder (plazo: 28 may 2026)', estado: 'pending', desc: 'Si no responde, puedes solicitar fallo anticipado por silencio.' },
+        { paso: '3', accion: 'Queja simultánea ante Superintendencia de Salud', estado: 'pending', desc: 'Proceso paralelo que genera presión institucional sobre la EPS.' },
+      ],
+    },
   },
   {
     id: 'caso-002',
@@ -49,6 +65,19 @@ const CASOS = [
     proximo_paso: null,
     docs_count: 2,
     alertas: 0,
+    expediente: {
+      radicado: 'DP-2026-04-2341',
+      despacho: 'Empresa ABC S.A.S. — Recursos Humanos',
+      resumen: 'Se radicó derecho de petición solicitando certificado laboral con fechas de ingreso y salida, cargo y salario. La empresa respondió dentro de los 15 días hábiles legales, entregando el documento completo. Caso cerrado exitosamente.',
+      derechos: [
+        { norma: 'Art. 23 Const.', texto: 'Derecho de petición — respuesta obligatoria en 15 días hábiles' },
+        { norma: 'Ley 1755/2015', texto: 'Regula el derecho de petición ante particulares y entidades privadas' },
+      ],
+      estrategia: [
+        { paso: '1', accion: 'Derecho de petición radicado ante ABC S.A.S.', estado: 'done', desc: 'Radicado el 20 abr 2026 ante el departamento de RRHH.' },
+        { paso: '2', accion: 'Respuesta de la empresa recibida', estado: 'done', desc: 'Respondieron el 5 may 2026, dentro del plazo de 15 días hábiles.' },
+      ],
+    },
   },
 ]
 
@@ -159,8 +188,9 @@ const PROGRESO_BY_ESTADO = { pendiente: 0, activo: 2, resuelto: 3 }
 export default function DashboardUsuario() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [section, setSection] = useState('resumen')
-  const [sidebar, setSidebar] = useState(false)
+  const [section,      setSection]      = useState('resumen')
+  const [sidebar,      setSidebar]      = useState(false)
+  const [selectedCaso, setSelectedCaso] = useState(null)
 
   // Fuerza sidebar cerrado al montar (evita el overlay que bloquea tras login)
   useEffect(() => { setSidebar(false) }, [])
@@ -299,6 +329,16 @@ export default function DashboardUsuario() {
           )}
         </div>
 
+        {/* Modal expediente */}
+        {selectedCaso && (
+          <ExpedienteModal
+            caso={selectedCaso}
+            docs={BOVEDA.filter(d => d.caso_id === selectedCaso.id)}
+            alertas={ALERTAS.filter(a => a.caso_id === selectedCaso.id)}
+            onClose={() => setSelectedCaso(null)}
+          />
+        )}
+
         <main className="flex-1 overflow-y-auto px-4 lg:px-8 py-6">
 
           {/* ── RESUMEN ── */}
@@ -389,7 +429,9 @@ export default function DashboardUsuario() {
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {CASOS.filter(c => c.estado === 'activo').map(c => <CaseCard key={c.id} caso={c} compact />)}
+                  {CASOS.filter(c => c.estado === 'activo').map(c => (
+                    <CaseCard key={c.id} caso={c} compact onVerExpediente={setSelectedCaso} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -408,7 +450,7 @@ export default function DashboardUsuario() {
                 </Link>
               </div>
               <div className="space-y-3">
-                {CASOS.map(c => <CaseCard key={c.id} caso={c} />)}
+                {CASOS.map(c => <CaseCard key={c.id} caso={c} onVerExpediente={setSelectedCaso} />)}
               </div>
             </div>
           )}
@@ -524,7 +566,7 @@ function ProgressBar({ progreso }) {
   )
 }
 
-function CaseCard({ caso, compact = false }) {
+function CaseCard({ caso, compact = false, onVerExpediente }) {
   const estado = ESTADO_CONFIG[caso.estado] || ESTADO_CONFIG.activo
   const compColor = COMPLEJIDAD_COLOR[caso.complejidad] || 'text-d-secondary'
   const progreso = PROGRESO_BY_ESTADO[caso.estado] ?? 1
@@ -578,7 +620,10 @@ function CaseCard({ caso, compact = false }) {
               <Bell size={12} /> {caso.alertas} alerta
             </span>
           )}
-          <button className="ml-auto flex items-center gap-1 text-xs text-brand hover:text-brand-light transition-colors font-semibold">
+          <button
+            className="ml-auto flex items-center gap-1 text-xs text-brand hover:text-brand-light transition-colors font-semibold"
+            onClick={() => onVerExpediente?.(caso)}
+          >
             Ver expediente <ChevronRight size={13} />
           </button>
         </div>
@@ -587,8 +632,13 @@ function CaseCard({ caso, compact = false }) {
   )
 }
 
-function DocumentCard({ doc }) {
+function DocumentCard({ doc, compact = false }) {
   const tipo = TIPO_LABEL[doc.tipo] || { label: doc.tipo, color: 'text-d-secondary' }
+
+  const handleDescargar = () => {
+    // Placeholder — cuando el backend esté activo, generará y descargará el PDF real
+    alert(`PDF "${doc.nombre}" estará disponible en el lanzamiento.`)
+  }
 
   return (
     <div className="bg-d-card border border-d-border rounded-2xl p-5 flex flex-col gap-3 hover:border-brand-ring transition-colors">
@@ -610,14 +660,167 @@ function DocumentCard({ doc }) {
         <span>{doc.size}</span>
       </div>
 
-      <div className="flex items-center gap-2 pt-1 border-t border-d-line">
-        <button className="flex items-center gap-1.5 text-xs text-d-secondary hover:text-d-primary bg-d-elevated hover:bg-d-border px-3 py-1.5 rounded-lg transition-colors font-medium">
-          <Eye size={13} /> Ver
-        </button>
-        <button className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-light bg-brand-dim hover:bg-brand-ring px-3 py-1.5 rounded-lg transition-colors font-semibold">
-          <Download size={13} /> Descargar PDF
-        </button>
+      {!compact && (
+        <div className="flex items-center gap-2 pt-1 border-t border-d-line">
+          <button
+            className="flex items-center gap-1.5 text-xs text-d-secondary hover:text-d-primary bg-d-elevated hover:bg-d-border px-3 py-1.5 rounded-lg transition-colors font-medium"
+            onClick={handleDescargar}
+          >
+            <Eye size={13} /> Ver
+          </button>
+          <button
+            className="flex items-center gap-1.5 text-xs text-brand hover:text-brand-light bg-brand-dim hover:bg-brand-ring px-3 py-1.5 rounded-lg transition-colors font-semibold"
+            onClick={handleDescargar}
+          >
+            <Download size={13} /> Descargar PDF
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Modal de expediente completo ── */
+function ExpedienteModal({ caso, docs, alertas, onClose }) {
+  const estado   = ESTADO_CONFIG[caso.estado]  || ESTADO_CONFIG.activo
+  const compColor = COMPLEJIDAD_COLOR[caso.complejidad] || 'text-d-secondary'
+
+  // Cierra con Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  const modal = (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl bg-d-card border border-d-border rounded-2xl overflow-hidden animate-fade-up"
+        style={{ margin: 'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 p-6 border-b border-d-border" style={{ background: '#141720' }}>
+          <div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-xs font-bold text-d-muted bg-d-elevated px-2 py-0.5 rounded-full border border-d-border">
+                {caso.tipo}
+              </span>
+              <span className={`flex items-center gap-1 text-xs font-semibold ${estado.color}`}>
+                {estado.icon} {estado.label}
+              </span>
+              <span className={`text-xs font-bold uppercase tracking-wide ${compColor}`}>
+                · {caso.complejidad}
+              </span>
+            </div>
+            <h2 className="font-display text-lg text-d-primary leading-snug">{caso.titulo}</h2>
+            <p className="text-xs text-d-muted mt-1">Radicado: {caso.expediente?.radicado} · {caso.expediente?.despacho}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 p-1.5 rounded-lg text-d-muted hover:text-d-primary hover:bg-d-elevated transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6 overflow-y-auto" style={{ maxHeight: '70vh' }}>
+
+          {/* Resumen */}
+          <div>
+            <p className="text-xs font-bold text-d-muted uppercase tracking-wider mb-2">Situación legal</p>
+            <p className="text-sm text-d-secondary leading-relaxed">{caso.expediente?.resumen}</p>
+          </div>
+
+          {/* Progreso */}
+          <div>
+            <p className="text-xs font-bold text-d-muted uppercase tracking-wider mb-3">Progreso del caso</p>
+            <div className="space-y-2">
+              {caso.expediente?.estrategia?.map((s, i) => (
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${
+                  s.estado === 'done' ? 'bg-ok-bg border-ok-ring' : 'bg-d-elevated border-d-border'
+                }`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    s.estado === 'done' ? 'bg-ok text-d-base' : 'bg-d-border text-d-muted'
+                  }`}>
+                    {s.estado === 'done' ? <CheckCircle2 size={14} /> : s.paso}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold ${s.estado === 'done' ? 'text-ok' : 'text-d-primary'}`}>
+                      {s.accion}
+                    </p>
+                    <p className="text-xs text-d-muted mt-0.5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Derechos vulnerados */}
+          {caso.expediente?.derechos?.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-d-muted uppercase tracking-wider mb-2">Fundamentos legales</p>
+              <div className="space-y-1.5">
+                {caso.expediente.derechos.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-d-secondary">
+                    <CheckCircle2 size={12} className="text-brand shrink-0" />
+                    <span className="font-semibold text-brand whitespace-nowrap">{d.norma}</span>
+                    <span>— {d.texto}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Alertas del caso */}
+          {alertas.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-d-muted uppercase tracking-wider mb-2">Alertas</p>
+              <div className="space-y-2">
+                {alertas.map(a => (
+                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border ${
+                    a.urgente ? 'bg-bad-bg border-bad-ring' : 'bg-d-elevated border-d-border'
+                  }`}>
+                    {a.urgente ? <AlertCircle size={14} className="text-bad mt-0.5 shrink-0" /> : <Bell size={14} className="text-d-muted mt-0.5 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-d-primary">{a.titulo}</p>
+                      <p className="text-xs text-d-secondary mt-0.5">{a.desc}</p>
+                      <p className="text-xs text-d-muted mt-1">{a.fecha}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Documentos del caso */}
+          {docs.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-d-muted uppercase tracking-wider mb-2">Documentos ({docs.length})</p>
+              <div className="space-y-2">
+                {docs.map(doc => <DocumentCard key={doc.id} doc={doc} compact />)}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-d-border flex items-center justify-between gap-3" style={{ background: '#141720' }}>
+          <p className="text-xs text-d-muted">Creado {caso.fecha_creacion}</p>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-d-elevated text-d-secondary text-sm font-medium hover:text-d-primary hover:bg-d-border transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }
