@@ -1,12 +1,85 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight, CheckCircle2, Clock, DollarSign,
-  FileText, Users, Star, ChevronDown, Briefcase,
-  Calendar, Shield, Zap, TrendingUp
+  FileText, Users, ChevronDown, Briefcase,
+  Shield, Zap, TrendingUp, X, Building2, UserCheck,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 import './Abogados.css'
+
+/* ── Planes para abogados ── */
+const PLANES = [
+  {
+    id: 'aliado',
+    nombre: 'Aliado',
+    subtitulo: 'Para abogados que empiezan',
+    precio: '$149.000',
+    periodo: '/ mes · IVA incluido',
+    highlight: false,
+    color: '#22D3A0',
+    comision: '8% por lead aceptado',
+    incluye: [
+      'Acceso a bolsa de leads premasticados',
+      'Hasta 8 leads disponibles al mes',
+      'Generador de documentos base (tutelas, peticiones)',
+      'Búsqueda de jurisprudencia por tema',
+      'Alertas de vencimientos procesales',
+      'Soporte por correo electrónico',
+    ],
+    noIncluye: [
+      'Leads prioritarios',
+      'Múltiples usuarios',
+      'CRM integrado',
+    ],
+  },
+  {
+    id: 'socio',
+    nombre: 'Socio Activo',
+    subtitulo: 'Para abogados con práctica establecida',
+    precio: '$299.000',
+    periodo: '/ mes · IVA incluido',
+    highlight: true,
+    color: '#00B4A0',
+    badge: 'Más popular',
+    comision: '5% por lead aceptado',
+    incluye: [
+      'Todo lo de Aliado',
+      'Leads ilimitados + acceso prioritario',
+      'Comisión reducida (5% vs 8%)',
+      'CRM básico integrado en el panel',
+      'Historial completo de casos y clientes',
+      'Generador de minutas y contratos',
+      'Soporte directo por WhatsApp',
+    ],
+    noIncluye: [
+      'Múltiples usuarios (solo 1 perfil)',
+      'Onboarding personalizado',
+    ],
+  },
+  {
+    id: 'firma',
+    nombre: 'Firma Aliada',
+    subtitulo: 'Para bufetes y firmas de abogados',
+    precio: '$699.000',
+    periodo: '/ mes · IVA incluido',
+    highlight: false,
+    color: '#F4A72B',
+    comision: 'Sin comisión por lead',
+    incluye: [
+      'Todo lo de Socio Activo',
+      'Sin comisión por leads aceptados',
+      'Hasta 8 perfiles de abogado',
+      'Panel de administración de firma',
+      'Asignación interna de leads por área',
+      'Reportes de productividad del equipo',
+      'Onboarding y capacitación personalizada',
+      'Soporte prioritario 24/7',
+    ],
+    noIncluye: [],
+  },
+]
 
 const BENEFICIOS = [
   {
@@ -88,28 +161,29 @@ const FAQS = [
 ]
 
 const Abogados = () => {
-  const [faqAbierto, setFaqAbierto] = useState(null)
+  const [faqAbierto,   setFaqAbierto]   = useState(null)
+  const [planSelecto,  setPlanSelecto]  = useState(null)   // plan clickeado → abre modal
   const [formData, setFormData] = useState({
-    nombre: '',
-    tarjeta: '',
-    ciudad: '',
-    especialidad: '',
-    correo: '',
-    telefono: '',
-    mensaje: '',
+    nombre: '', tarjeta: '', nit: '', firma: '', num_abogados: '',
+    ciudad: '', especialidad: '', correo: '', telefono: '', tipo: 'independiente',
   })
   const [enviado,  setEnviado]  = useState(false)
   const [loading,  setLoading]  = useState(false)
 
-  const handleSubmit = async () => {
+  const esFirma  = formData.tipo === 'bufete'
+  const canSubmit = esFirma
+    ? (formData.firma && formData.correo && formData.nit)
+    : (formData.nombre && formData.correo && formData.tarjeta)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     if (!canSubmit || loading) return
     setLoading(true)
-    // Intenta el backend; en su ausencia espera 1.8 s y simula éxito
     try {
       const res = await fetch('/api/lawyers/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, plan: planSelecto?.id }),
       })
       if (!res.ok) throw new Error('sin backend')
     } catch {
@@ -117,9 +191,10 @@ const Abogados = () => {
     }
     setLoading(false)
     setEnviado(true)
+    setPlanSelecto(null)
   }
 
-  const canSubmit = formData.nombre && formData.correo && formData.tarjeta
+  const abrirPlan = (plan) => { setEnviado(false); setFormData(f => ({ ...f, tipo: 'independiente' })); setPlanSelecto(plan) }
 
   return (
     <div className="abogados-page">
@@ -310,54 +385,188 @@ const Abogados = () => {
         </div>
       </section>
 
-      {/* ── FORMULARIO ── */}
-      <section className="abogados-form" id="unirse">
-        <div className="container container-narrow">
-          {!enviado ? (
-            <div className="form-card">
-              <div className="form-card__header">
-                <h2>Quiero ser abogado aliado</h2>
-                <p>Cupos limitados para la red de lanzamiento. Déjanos tus datos y te contactamos esta semana.</p>
-              </div>
+      {/* ── PRECIOS ── */}
+      <section className="abogados-precios" id="unirse">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">Planes y precios</span>
+            <h2>Elige el plan que<br /><em>se ajusta a tu práctica</em></h2>
+            <p>Sin contratos de permanencia. Cancela cuando quieras. Todos los planes incluyen acceso completo desde el primer día.</p>
+          </div>
 
-              <div className="form-fields">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Nombre completo *</label>
-                    <input
-                      type="text"
-                      placeholder="Dr. Carlos Martínez"
-                      value={formData.nombre}
-                      onChange={e => setFormData({...formData, nombre: e.target.value})}
-                    />
+          <div className="precios-grid">
+            {PLANES.map(plan => (
+              <div key={plan.id} className={`precio-card ${plan.highlight ? 'precio-card--highlight' : ''}`}>
+                {plan.badge && (
+                  <div className="precio-badge">{plan.badge}</div>
+                )}
+                <div className="precio-header">
+                  <h3 className="precio-nombre" style={{ color: plan.color }}>{plan.nombre}</h3>
+                  <p className="precio-subtitulo">{plan.subtitulo}</p>
+                  <div className="precio-monto">
+                    <span className="precio-valor">{plan.precio}</span>
+                    <span className="precio-periodo">{plan.periodo}</span>
                   </div>
-                  <div className="form-group">
-                    <label>Tarjeta profesional *</label>
-                    <input
-                      type="text"
-                      placeholder="TP-12345 Consejo Superior"
-                      value={formData.tarjeta}
-                      onChange={e => setFormData({...formData, tarjeta: e.target.value})}
-                    />
+                  <div className="precio-comision">
+                    <Zap size={13} style={{ color: plan.color }} />
+                    <span>{plan.comision}</span>
                   </div>
                 </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Ciudad</label>
-                    <input
-                      type="text"
-                      placeholder="Bogotá, Medellín, Cali..."
-                      value={formData.ciudad}
-                      onChange={e => setFormData({...formData, ciudad: e.target.value})}
-                    />
+                <ul className="precio-incluye">
+                  {plan.incluye.map((item, i) => (
+                    <li key={i} className="precio-item precio-item--ok">
+                      <CheckCircle2 size={14} style={{ color: plan.color, flexShrink: 0 }} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                  {plan.noIncluye.map((item, i) => (
+                    <li key={i} className="precio-item precio-item--no">
+                      <X size={14} style={{ flexShrink: 0 }} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  className={`precio-cta ${plan.highlight ? 'precio-cta--highlight' : ''}`}
+                  style={plan.highlight ? {} : { borderColor: plan.color, color: plan.color }}
+                  onClick={() => abrirPlan(plan)}
+                >
+                  Contratar {plan.nombre}
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p className="precios-nota">
+            * Precios expresados en COP con IVA incluido. La comisión aplica sobre el valor cobrado al ciudadano cuando aceptas un lead.
+            Para facturación anual con descuento del 20%, contáctanos directamente.
+          </p>
+        </div>
+      </section>
+
+      {/* Modal de contratación */}
+      {planSelecto && createPortal(
+        <ModalContratacion
+          plan={planSelecto}
+          formData={formData}
+          setFormData={setFormData}
+          canSubmit={canSubmit}
+          loading={loading}
+          enviado={enviado}
+          onSubmit={handleSubmit}
+          onClose={() => setPlanSelecto(null)}
+        />,
+        document.body
+      )}
+
+      {/* Éxito global (si cerraron el modal luego de enviar) */}
+      {enviado && !planSelecto && (
+        <div className="container" style={{ textAlign: 'center', padding: '32px 16px' }}>
+          <div className="form-success animate-fade-up">
+            <CheckCircle2 size={48} />
+            <h2>¡Solicitud enviada!</h2>
+            <p>Te contactamos en menos de 48 horas para activar tu cuenta.</p>
+            <Link to="/" className="btn-outline">Volver al inicio</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Footer simple */}
+      <footer className="abogados-footer">
+        <div className="container">
+          <Logo size={28} showText={true} />
+          <p>© 2026 Defiéndete · Servicio Legal Digital · Colombia 🇨🇴</p>
+        </div>
+      </footer>
+
+    </div>
+  )
+}
+
+/* ── Modal de contratación ── */
+function ModalContratacion({ plan, formData, setFormData, canSubmit, loading, enviado, onSubmit, onClose }) {
+  const esFirma = formData.tipo === 'bufete'
+
+  // Cierra con Escape
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const set = (field) => (e) => setFormData(f => ({ ...f, [field]: e.target.value }))
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}
+      onClick={onClose}
+    >
+      <div
+        className="modal-contratacion animate-fade-up"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="modal-header" style={{ borderColor: plan.color + '44' }}>
+          <div>
+            <p className="modal-plan-tag" style={{ color: plan.color }}>Plan {plan.nombre}</p>
+            <h2 className="modal-title">Activa tu cuenta de abogado</h2>
+            <p className="modal-subtitle">{plan.precio} {plan.periodo}</p>
+          </div>
+          <button onClick={onClose} className="modal-close"><X size={20} /></button>
+        </div>
+
+        {enviado ? (
+          <div className="modal-success">
+            <CheckCircle2 size={44} style={{ color: plan.color }} />
+            <h3>¡Solicitud enviada!</h3>
+            <p>Te contactamos en menos de 48 horas para activar tu cuenta de <strong>{plan.nombre}</strong>.</p>
+            <button className="btn-cta" onClick={onClose} style={{ marginTop: 8 }}>Cerrar</button>
+          </div>
+        ) : (
+          <form className="modal-form" onSubmit={onSubmit}>
+
+            {/* Tipo de cliente */}
+            <div className="modal-tipo-selector">
+              <button
+                type="button"
+                className={`modal-tipo-btn ${!esFirma ? 'modal-tipo-btn--active' : ''}`}
+                style={!esFirma ? { borderColor: plan.color, color: plan.color, background: plan.color + '14' } : {}}
+                onClick={() => setFormData(f => ({ ...f, tipo: 'independiente' }))}
+              >
+                <UserCheck size={18} />
+                <span>Abogado independiente</span>
+              </button>
+              <button
+                type="button"
+                className={`modal-tipo-btn ${esFirma ? 'modal-tipo-btn--active' : ''}`}
+                style={esFirma ? { borderColor: plan.color, color: plan.color, background: plan.color + '14' } : {}}
+                onClick={() => setFormData(f => ({ ...f, tipo: 'bufete' }))}
+              >
+                <Building2 size={18} />
+                <span>Bufete / Firma</span>
+              </button>
+            </div>
+
+            {/* Campos según tipo */}
+            {!esFirma ? (
+              <>
+                <div className="modal-row">
+                  <div className="modal-field">
+                    <label>Nombre completo *</label>
+                    <input type="text" placeholder="Dr. Carlos Martínez" value={formData.nombre} onChange={set('nombre')} required />
                   </div>
-                  <div className="form-group">
+                  <div className="modal-field">
+                    <label>Tarjeta profesional *</label>
+                    <input type="text" placeholder="TP-12345" value={formData.tarjeta} onChange={set('tarjeta')} required />
+                  </div>
+                </div>
+                <div className="modal-row">
+                  <div className="modal-field">
                     <label>Especialidad principal</label>
-                    <select
-                      value={formData.especialidad}
-                      onChange={e => setFormData({...formData, especialidad: e.target.value})}
-                    >
+                    <select value={formData.especialidad} onChange={set('especialidad')}>
                       <option value="">Selecciona...</option>
                       <option>Derecho de Familia</option>
                       <option>Derecho Penal</option>
@@ -368,74 +577,73 @@ const Abogados = () => {
                       <option>General / Varias áreas</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Correo electrónico *</label>
-                    <input
-                      type="email"
-                      placeholder="tu@correo.com"
-                      value={formData.correo}
-                      onChange={e => setFormData({...formData, correo: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>WhatsApp</label>
-                    <input
-                      type="tel"
-                      placeholder="300 123 4567"
-                      value={formData.telefono}
-                      onChange={e => setFormData({...formData, telefono: e.target.value})}
-                    />
+                  <div className="modal-field">
+                    <label>Ciudad</label>
+                    <input type="text" placeholder="Bogotá, Medellín..." value={formData.ciudad} onChange={set('ciudad')} />
                   </div>
                 </div>
-
-                <div className="form-group">
-                  <label>¿Algo que quieras contarnos?</label>
-                  <textarea
-                    placeholder="Tu experiencia, el tipo de casos que manejas, preguntas..."
-                    value={formData.mensaje}
-                    onChange={e => setFormData({...formData, mensaje: e.target.value})}
-                    rows={3}
-                  />
+              </>
+            ) : (
+              <>
+                <div className="modal-row">
+                  <div className="modal-field">
+                    <label>Nombre de la firma *</label>
+                    <input type="text" placeholder="Martínez & Asociados" value={formData.firma} onChange={set('firma')} required />
+                  </div>
+                  <div className="modal-field">
+                    <label>NIT de la firma *</label>
+                    <input type="text" placeholder="900.123.456-7" value={formData.nit} onChange={set('nit')} required />
+                  </div>
                 </div>
+                <div className="modal-row">
+                  <div className="modal-field">
+                    <label>Nombre del contacto principal</label>
+                    <input type="text" placeholder="Dr. Jorge Martínez" value={formData.nombre} onChange={set('nombre')} />
+                  </div>
+                  <div className="modal-field">
+                    <label>N.º de abogados en la firma</label>
+                    <select value={formData.num_abogados} onChange={set('num_abogados')}>
+                      <option value="">Selecciona...</option>
+                      <option>2 – 3</option>
+                      <option>4 – 6</option>
+                      <option>7 – 10</option>
+                      <option>Más de 10</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="modal-row">
+                  <div className="modal-field">
+                    <label>Ciudad</label>
+                    <input type="text" placeholder="Bogotá, Medellín..." value={formData.ciudad} onChange={set('ciudad')} />
+                  </div>
+                </div>
+              </>
+            )}
 
-                <button
-                  className={`btn-cta btn-cta--full ${(!canSubmit || loading) ? 'btn-disabled' : ''}`}
-                  onClick={handleSubmit}
-                  disabled={!canSubmit || loading}
-                >
-                  {loading ? 'Enviando…' : 'Enviar solicitud'}
-                  {!loading && <ArrowRight size={18} />}
-                </button>
-
-                <p className="form-nota">
-                  * Campos obligatorios. Verificamos la tarjeta profesional antes de activar tu cuenta.
-                </p>
+            {/* Campos comunes */}
+            <div className="modal-row">
+              <div className="modal-field">
+                <label>Correo electrónico *</label>
+                <input type="email" placeholder="correo@firma.com" value={formData.correo} onChange={set('correo')} required />
+              </div>
+              <div className="modal-field">
+                <label>WhatsApp</label>
+                <input type="tel" placeholder="300 123 4567" value={formData.telefono} onChange={set('telefono')} />
               </div>
             </div>
-          ) : (
-            <div className="form-success animate-fade-up">
-              <CheckCircle2 size={48} />
-              <h2>¡Recibido!</h2>
-              <p>Te contactamos en menos de 48 horas para activar tu cuenta de abogado aliado.</p>
-              <Link to="/" className="btn-outline">
-                Ver la plataforma
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* Footer simple */}
-      <footer className="abogados-footer">
-        <div className="container">
-          <Logo size={28} showText={true} />
-          <p>© 2026 Defiéndete · Servicio Legal Digital · Colombia 🇨🇴</p>
-        </div>
-      </footer>
-
+            <button
+              type="submit"
+              className={`btn-cta btn-cta--full ${(!canSubmit || loading) ? 'btn-cta--disabled' : ''}`}
+              disabled={!canSubmit || loading}
+            >
+              {loading ? 'Enviando solicitud…' : `Activar plan ${plan.nombre}`}
+              {!loading && <ArrowRight size={18} />}
+            </button>
+            <p className="modal-nota">* Campos obligatorios. Verificamos la tarjeta profesional o el NIT antes de activar tu cuenta.</p>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import PrivateRoute from './components/auth/PrivateRoute'
 import GuestRoute from './components/auth/GuestRoute'
@@ -12,6 +13,13 @@ import Login from './pages/Login'
 import Registro from './pages/Registro'
 import './index.css'
 
+/* Sube al inicio de la página en cada cambio de ruta */
+const ScrollToTop = () => {
+  const { pathname } = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  return null
+}
+
 /* Redirige /dashboard al panel correcto según rol, o a login si no hay sesión */
 const DashboardRedirect = () => {
   const { user, isAuthenticated, loading } = useAuth()
@@ -24,6 +32,7 @@ const App = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
 
           {/* ── Rutas públicas ── */}
