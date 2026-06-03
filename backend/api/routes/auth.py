@@ -13,8 +13,8 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
-from config import settings  # SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
-
+from config import get_settings
+settings = get_settings()
 router = APIRouter()
 
 # ── Crypto ──────────────────────────────────────────────────────────────────
