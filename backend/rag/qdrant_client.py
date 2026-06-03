@@ -31,43 +31,72 @@ class CorpusLegalDB:
         self.embedding_dim = settings.qdrant_embedding_dim
 
     def init_collection(self):
-        """Crear la colección si no existe."""
-        collections = [c.name for c in self.client.get_collections().collections]
+        """Crear la colección si no existe.
 
-        if self.collection not in collections:
-            self.client.create_collection(
+        Si ya existe pero tiene dimensiones distintas a las configuradas,
+        lanza un error claro indicando que hay que correr reset_collection().
+        """
+        existing = [c.name for c in self.client.get_collections().collections]
+
+        if self.collection in existing:
+            # Verificar que las dimensiones coincidan
+            info = self.client.get_collection(self.collection)
+            current_dim = info.config.params.vectors.size  # type: ignore[union-attr]
+            if current_dim != self.embedding_dim:
+                raise RuntimeError(
+                    f"La colección '{self.collection}' existe con dim={current_dim} "
+                    f"pero la config espera dim={self.embedding_dim}. "
+                    f"Corre: python scripts/reset_collection.py"
+                )
+            logger.info("collection_exists", name=self.collection, dim=current_dim)
+            return
+
+        self._create_collection()
+
+    def reset_collection(self):
+        """Borrar la colección existente y recrearla con las dimensiones actuales.
+
+        Úsalo cuando cambies el modelo de embeddings (ej. OpenAI → local).
+        ⚠️  Elimina TODOS los vectores indexados — hay que re-seedear el corpus.
+        """
+        existing = [c.name for c in self.client.get_collections().collections]
+
+        if self.collection in existing:
+            logger.warning(
+                "dropping_collection",
+                name=self.collection,
+                reason="reset solicitado por cambio de modelo de embeddings",
+            )
+            self.client.delete_collection(self.collection)
+            logger.info("collection_dropped", name=self.collection)
+
+        self._create_collection()
+        logger.info("collection_reset_complete", name=self.collection, dim=self.embedding_dim)
+
+    def _create_collection(self):
+        """Crea la colección e índices de payload desde cero."""
+        self.client.create_collection(
+            collection_name=self.collection,
+            vectors_config=VectorParams(
+                size=self.embedding_dim,
+                distance=Distance.COSINE,
+            ),
+        )
+
+        # Índices para filtrado rápido por metadatos
+        for field, schema in [
+            ("tipo",    PayloadSchemaType.KEYWORD),
+            ("rama",    PayloadSchemaType.KEYWORD),
+            ("numero",  PayloadSchemaType.KEYWORD),
+            ("vigente", PayloadSchemaType.BOOL),
+        ]:
+            self.client.create_payload_index(
                 collection_name=self.collection,
-                vectors_config=VectorParams(
-                    size=self.embedding_dim,
-                    distance=Distance.COSINE,
-                ),
+                field_name=field,
+                field_schema=schema,
             )
 
-            # Índices para filtrado rápido por metadatos
-            self.client.create_payload_index(
-                collection_name=self.collection,
-                field_name="tipo",
-                field_schema=PayloadSchemaType.KEYWORD,
-            )
-            self.client.create_payload_index(
-                collection_name=self.collection,
-                field_name="rama",
-                field_schema=PayloadSchemaType.KEYWORD,
-            )
-            self.client.create_payload_index(
-                collection_name=self.collection,
-                field_name="numero",
-                field_schema=PayloadSchemaType.KEYWORD,
-            )
-            self.client.create_payload_index(
-                collection_name=self.collection,
-                field_name="vigente",
-                field_schema=PayloadSchemaType.BOOL,
-            )
-
-            logger.info("collection_created", name=self.collection)
-        else:
-            logger.info("collection_exists", name=self.collection)
+        logger.info("collection_created", name=self.collection, dim=self.embedding_dim)
 
     def upsert_chunks(self, chunks: list[dict]):
         """

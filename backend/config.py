@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "corpus_legal"
-    qdrant_embedding_dim: int = 1536  # OpenAI text-embedding-3-small
+    qdrant_embedding_dim: int = 384   # paraphrase-multilingual-MiniLM-L12-v2
 
     # Postgres
     database_url: str = "postgresql+asyncpg://justicia_user:justicia_dev_2026@localhost:5432/justicia"
@@ -28,8 +28,10 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # Embeddings
-    embedding_provider: str = "openai"  # openai | voyage | local
+    # Embeddings — modelo local sentence-transformers (sin costo por llamada)
+    embedding_provider: str = "local"  # local | openai
+    embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    # openai_api_key solo necesario si se cambia embedding_provider a "openai"
     openai_api_key: str = ""
 
     # Wompi
