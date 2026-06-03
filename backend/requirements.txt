@@ -41,6 +41,6 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.12
 
 # === Utils ===
-tenacity==9.0.0
+tenacity==8.2.3
 structlog==24.4.0
 rich==13.8.0
