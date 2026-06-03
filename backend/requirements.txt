@@ -7,9 +7,9 @@ python-dotenv==1.0.1
 
 # === LLM & Agents ===
 anthropic==0.39.0
-langgraph==0.2.0
+langgraph==0.2.73
 langchain-core==0.3.0
-langchain-anthropic==0.2.0
+langchain-anthropic==0.3.0
 
 # === RAG & Vectors ===
 qdrant-client==1.12.0
