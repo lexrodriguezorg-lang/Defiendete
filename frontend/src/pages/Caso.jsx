@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -7,6 +7,12 @@ import {
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 import './Caso.css'
+
+/* ── Primer mensaje del asistente ── */
+const FIRST_MESSAGE =
+  'Hola, cuéntame tu situación con tus propias palabras. ' +
+  'No te preocupes por el orden ni los términos técnicos — ' +
+  'yo voy a ayudarte a estructurarlo.'
 
 /* ── Ejemplos de casos ── */
 const CASE_EXAMPLES = [
@@ -25,66 +31,41 @@ const URGENCY_LABELS = {
   baja:    { label: '✅ Urgencia baja',    color: '#22D3A0' },
 }
 
-/* ── Estilos del badge por nivel de complejidad (solo colores, sin precios) ── */
 const COMPLEXITY_CONFIG = {
   baja:  { label: 'Complejidad baja',  color: '#22D3A0', bgColor: 'rgba(34,211,160,0.08)',  borderColor: 'rgba(34,211,160,0.25)' },
   media: { label: 'Complejidad media', color: '#F4A72B', bgColor: 'rgba(244,167,43,0.08)',  borderColor: 'rgba(244,167,43,0.25)' },
   alta:  { label: 'Complejidad alta',  color: '#00B4A0', bgColor: 'rgba(0,180,160,0.08)',   borderColor: 'rgba(0,180,160,0.3)'   },
 }
 
-/*
- * inferCategoria(text) → string
- * Mapea el texto libre a una categoría jurídica específica.
- * El orden de evaluación importa: primero los más específicos.
- */
 const inferCategoria = (text) => {
   const s = text.toLowerCase()
-
-  // Salud / EPS / Tutela médica
   if (['eps', 'cirugía', 'cirugia', 'salud', 'médico', 'medico',
        'hospital', 'clínica', 'clinica', 'medicamento', 'operación', 'operacion',
        'procedimiento', 'cita médica', 'cita medica'].some(p => s.includes(p)))
     return 'tutela_salud'
-
-  // Arrendamiento — corte de servicios o conflicto con arrendador
   if (['arrendador', 'arriendo', 'arrendamiento', 'arrendatario', 'inquilino'].some(p => s.includes(p)))
     return 'arriendo'
   if (['cortó el agua', 'corto el agua', 'cortó la luz', 'corto la luz',
        'sin agua', 'sin luz', 'sin servicios'].some(p => s.includes(p)))
     return 'arriendo'
-
-  // Custodia / familia
   if (['custodia', 'hijo', 'hija', 'menor', 'visita', 'régimen de visitas',
        'progenitor', 'pareja no me deja'].some(p => s.includes(p)))
     return 'custodia'
-
-  // Acoso laboral (antes que laboral general para no confundirse)
   if (['acoso', 'hostigamiento', 'maltrato', 'grita', 'humilla',
        'discrimina', 'amenaza delante'].some(p => s.includes(p)))
     return 'acoso_laboral'
-
-  // Laboral general — despido, liquidación, salarios
   if (['despido', 'despedido', 'liquidación', 'liquidacion', 'salario',
        'empleador', 'empresa', 'trabajo', 'contrato', 'prestaciones',
        'jefe', 'patrón', 'patron', 'empleado', 'contrato indefinido'].some(p => s.includes(p)))
     return 'laboral'
-
-  // Consumidor / estafa / garantías
   if (['estafa', 'fraude', 'garantía', 'garantia', 'compra', 'producto',
        'devolución', 'devolucion', 'entrega', 'pagué', 'pague',
        'nunca recibí', 'nunca recibi', 'internet'].some(p => s.includes(p)))
     return 'consumidor'
-
   return 'generico'
 }
 
-/*
- * MOCK_BY_CATEGORIA — respuesta completa por categoría jurídica.
- * Cada entrada incluye complejidad, precio y diagnóstico específico.
- * Espeja la estructura que devolverá el backend real (campo `categoria` incluido).
- */
 const MOCK_BY_CATEGORIA = {
-
   tutela_salud: {
     complejidad: 'alta',
     precio_label: '$120.000 COP',
@@ -268,95 +249,187 @@ const LOADER_MSGS = [
   'Estructurando fundamentos jurídicos...',
 ]
 
+/* ── Helpers de localStorage ── */
+const LS_KEY = 'defiendete_chat'
+const lsSave  = (msgs) => { try { localStorage.setItem(LS_KEY, JSON.stringify(msgs)) } catch {} }
+const lsClear = ()     => { try { localStorage.removeItem(LS_KEY) } catch {} }
+const lsLoad  = ()     => {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch {}
+  return null
+}
+
+/* ── Fallback offline por turno ── */
+const FALLBACK_REPLIES = [
+  '¿En qué ciudad de Colombia sucedió esto y qué resultado esperas obtener — recuperar dinero, protección legal, o algo diferente?',
+  '¿Tienes algún documento relacionado con el caso (contrato, carta, historia clínica, capturas de pantalla)? ¿Y hay un monto económico involucrado?',
+  '¿Cuándo ocurrió exactamente y hay algún plazo legal que debas cumplir próximamente?',
+]
+
 /* ── Componente principal ── */
 const Caso = () => {
   const { user, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const [step, setStep]       = useState('form')
-  const [story, setStory]     = useState('')
-  const [result, setResult]   = useState(null)
-  const [leadData, setLeadData] = useState({ nombre: '', contacto: '' })
-  const [loadingMsg, setLoadingMsg] = useState(0)
-  const [pagoMsg, setPagoMsg]  = useState(false)
 
-  const canSubmit     = story.trim().length >= 30
-  // Si hay sesión, el lead ya tiene nombre y email — no se requiere el form de captura
+  /* Pasos: chat → loading → capture → result */
+  const [step, setStep] = useState('chat')
+
+  /* Chat state */
+  const [chatMessages, setChatMessages] = useState(
+    () => lsLoad() || [{ role: 'assistant', content: FIRST_MESSAGE }]
+  )
+  const [chatInput, setChatInput]   = useState('')
+  const [isTyping,  setIsTyping]    = useState(false)
+  const chatEndRef = useRef(null)
+
+  /* Resto del flujo */
+  const [result,    setResult]    = useState(null)
+  const [leadData,  setLeadData]  = useState({ nombre: '', contacto: '' })
+  const [loadingMsg,setLoadingMsg]= useState(0)
+  const [pagoMsg,   setPagoMsg]   = useState(false)
+
   const canSubmitLead = isAuthenticated
     ? true
     : leadData.nombre.trim().length >= 2 && leadData.contacto.trim().length >= 5
 
-  /* Cicla los mensajes del loader mientras está en carga */
+  /* Auto-scroll al último mensaje */
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages, isTyping])
+
+  /* Cicla los mensajes del loader */
   useEffect(() => {
     if (step !== 'loading') return
     setLoadingMsg(0)
     let idx = 0
-    const interval = setInterval(() => {
+    const iv = setInterval(() => {
       idx = (idx + 1) % LOADER_MSGS.length
       setLoadingMsg(idx)
     }, 1250)
-    return () => clearInterval(interval)
+    return () => clearInterval(iv)
   }, [step])
 
-  /*
-   * runDiagnosis(storyText) — recibe el texto DIRECTAMENTE como parámetro.
-   * Esto elimina el bug de closure donde handleSubmit capturaba el valor viejo
-   * de `story` del render anterior cuando el usuario hacía click en un chip.
-   * inferComplexidad siempre recibe el texto correcto, sin depender del estado.
-   */
-  const runDiagnosis = async (storyText) => {
-    if (!storyText || storyText.trim().length < 30) return
-    setStep('loading')
+  /* ── Enviar mensaje al asistente ── */
+  const handleChatSend = async (overrideText) => {
+    const text = (overrideText !== undefined ? overrideText : chatInput).trim()
+    if (!text || isTyping) return
 
-    const timerPromise = new Promise(r => setTimeout(r, 3800))
+    setChatInput('')
 
-    let apiResult
+    const newMessages = [...chatMessages, { role: 'user', content: text }]
+    setChatMessages(newMessages)
+    lsSave(newMessages)
+    setIsTyping(true)
+
+    const userTurn = newMessages.filter(m => m.role === 'user').length
+
     try {
-      const res = await fetch('/api/cases/diagnose', {
+      const res = await fetch('/api/cases/conversar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ story: storyText }),
+        body: JSON.stringify({
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
       })
-      if (!res.ok) throw new Error('API no disponible')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      // El backend devolverá `categoria` cuando esté conectado; mientras tanto inferimos
-      const categoria = data.categoria || inferCategoria(storyText)
-      const mockBase  = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
-      apiResult = { ...mockBase, ...data, categoria }
-    } catch {
-      // Fallback 100% frontend: infiere categoría del texto y devuelve mock específico
-      const categoria = inferCategoria(storyText)
-      const mock = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
-      apiResult = {
-        success: true,
-        categoria,
-        complejidad:   mock.complejidad,
-        precio_label:  mock.precio_label,
-        precio_note:   mock.precio_note,
-        rama:          mock.rama,
-        urgencia:      mock.urgencia,
-        triage_result: mock.triage_result,
-        payment_required_for: ['estrategia_completa', 'documentos', 'seguimiento'],
-      }
-    }
 
-    await timerPromise
-    setResult(apiResult)
-    // Si el usuario está logueado, sus datos ya están en AuthContext — saltar captura
-    if (isAuthenticated) {
-      setLeadData({ nombre: user.nombre, contacto: user.email || '' })
-      setStep('result')
-    } else {
-      setStep('capture')
+      if (data.info_completa) {
+        /* ── Info completa → transición a resultado ── */
+        const assistantMsg = data.mensaje_usuario || 'Perfecto. Voy a analizar tu caso ahora mismo.'
+        const finalMessages = [...newMessages, { role: 'assistant', content: assistantMsg }]
+        setChatMessages(finalMessages)
+        lsSave(finalMessages)
+        setIsTyping(false)
+
+        /* Construir objeto result compatible con la pantalla de resultado */
+        const userTexts  = newMessages.filter(m => m.role === 'user').map(m => m.content).join(' ')
+        const categoria  = inferCategoria(userTexts)
+        const mockBase   = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
+        let apiResult
+
+        if (data.triage_result) {
+          const cl = data.triage_result.clasificacion || {}
+          apiResult = {
+            success:  true,
+            categoria,
+            complejidad:  mockBase.complejidad,
+            precio_label: mockBase.precio_label,
+            precio_note:  mockBase.precio_note,
+            rama:     cl.rama_derecho || mockBase.rama,
+            urgencia: cl.urgencia    || mockBase.urgencia,
+            triage_result: data.triage_result,
+            payment_required_for: data.payment_required_for || ['estrategia_completa', 'documentos', 'seguimiento'],
+          }
+        } else {
+          /* Triage falló en el backend → usar mock */
+          apiResult = { success: true, categoria, ...mockBase }
+        }
+
+        /* Pequeña pausa para que el usuario lea el último mensaje */
+        setTimeout(() => {
+          setResult(apiResult)
+          setStep('loading')
+          setTimeout(() => {
+            if (isAuthenticated) {
+              setLeadData({ nombre: user?.nombre || '', contacto: user?.email || '' })
+              setStep('result')
+            } else {
+              setStep('capture')
+            }
+          }, 3800)
+        }, 700)
+
+      } else {
+        /* ── Siguiente pregunta → continuar conversación ── */
+        const q = data.siguiente_pregunta || '¿Puedes contarme un poco más?'
+        const updated = [...newMessages, { role: 'assistant', content: q }]
+        setChatMessages(updated)
+        lsSave(updated)
+        setIsTyping(false)
+      }
+
+    } catch {
+      /* ── Fallback offline ── */
+      setIsTyping(false)
+
+      if (userTurn > 4) {
+        /* Demasiados turnos sin backend → usar mock directamente */
+        const msg = 'Con la información que me compartiste voy a preparar tu diagnóstico inicial.'
+        const finalMessages = [...newMessages, { role: 'assistant', content: msg }]
+        setChatMessages(finalMessages)
+        lsSave(finalMessages)
+
+        const userTexts = newMessages.filter(m => m.role === 'user').map(m => m.content).join(' ')
+        const categoria = inferCategoria(userTexts)
+        const mock      = MOCK_BY_CATEGORIA[categoria] || MOCK_BY_CATEGORIA.generico
+        setResult({ success: true, categoria, ...mock })
+        setStep('loading')
+        setTimeout(() => {
+          if (isAuthenticated) {
+            setLeadData({ nombre: user?.nombre || '', contacto: user?.email || '' })
+            setStep('result')
+          } else {
+            setStep('capture')
+          }
+        }, 3800)
+      } else {
+        const fallback = FALLBACK_REPLIES[Math.min(userTurn - 1, FALLBACK_REPLIES.length - 1)]
+        const updated  = [...newMessages, { role: 'assistant', content: fallback }]
+        setChatMessages(updated)
+        lsSave(updated)
+      }
     }
   }
 
-  /* Botón principal — usa el estado actual del textarea */
-  const handleSubmit = () => runDiagnosis(story)
-
-  /* Click en chip — pasa el texto directamente, sin esperar re-render del estado */
+  /* Click en chip de ejemplo → auto-envía */
   const handleExampleClick = (ex) => {
-    setStory(ex)
-    runDiagnosis(ex)
+    if (!isTyping) handleChatSend(ex)
   }
 
   const handleLeadSubmit = (e) => {
@@ -365,21 +438,29 @@ const Caso = () => {
     setStep('result')
   }
 
-  /* CTA de compra — redirige a registro si no hay sesión; muestra info de pago si la hay */
+  /* CTA de compra */
   const handleComprar = () => {
-    if (!isAuthenticated) {
-      navigate('/registro')
-      return
-    }
+    if (!isAuthenticated) { navigate('/registro'); return }
     setPagoMsg(true)
-    // Cuando Wompi esté activo, aquí se abrirá el checkout
   }
 
-  /* ── Indicador de progreso (4 pasos) ── */
-  const STEPS_ORDER = ['form', 'loading', 'capture', 'result']
+  /* Reset completo — volver al chat vacío */
+  const handleReset = () => {
+    const fresh = [{ role: 'assistant', content: FIRST_MESSAGE }]
+    setChatMessages(fresh)
+    setChatInput('')
+    lsSave(fresh)
+    setResult(null)
+    setLeadData({ nombre: '', contacto: '' })
+    setPagoMsg(false)
+    setStep('chat')
+  }
+
+  /* ── Indicador de progreso ── */
+  const STEPS_ORDER = ['chat', 'loading', 'capture', 'result']
   const currentIdx  = STEPS_ORDER.indexOf(step)
   const stepDot = (idx) => {
-    if (idx < currentIdx) return 'step-dot--done'
+    if (idx < currentIdx)  return 'step-dot--done'
     if (idx === currentIdx) return 'step-dot--active'
     return ''
   }
@@ -405,52 +486,81 @@ const Caso = () => {
 
       <main className="caso-main">
 
-        {/* ── FORMULARIO ── */}
-        {step === 'form' && (
-          <div className="caso-form container-narrow animate-fade-up">
-            <div className="caso-form__header">
-              <span className="section-tag">Diagnóstico gratuito</span>
+        {/* ── CHAT CONVERSACIONAL ── */}
+        {step === 'chat' && (
+          <div className="caso-chat container-narrow animate-fade-up">
+
+            <div className="caso-chat__header">
+              <span className="section-tag">Asistente legal</span>
               <h1>Cuéntanos qué pasó</h1>
-              <p>Sin términos técnicos. Como si se lo contaras a un amigo. El sistema entiende lenguaje natural.</p>
+              <p>El asistente va a guiarte con preguntas precisas para preparar tu diagnóstico.</p>
             </div>
 
-            <div className="caso-textarea-wrap">
+            {/* Área de mensajes */}
+            <div className="chat-messages">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`chat-bubble chat-bubble--${msg.role}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="chat-avatar">
+                      <Scale size={12} />
+                    </div>
+                  )}
+                  <div className="chat-text">{msg.content}</div>
+                </div>
+              ))}
+
+              {/* Indicador "escribiendo..." */}
+              {isTyping && (
+                <div className="chat-bubble chat-bubble--assistant">
+                  <div className="chat-avatar"><Scale size={12} /></div>
+                  <div className="chat-typing">
+                    <span /><span /><span />
+                  </div>
+                </div>
+              )}
+
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chips de ejemplo — solo cuando el chat está vacío */}
+            {chatMessages.length === 1 && !isTyping && (
+              <div className="chat-examples">
+                <span className="examples-label">O elige un caso similar para empezar:</span>
+                <div className="examples-list">
+                  {CASE_EXAMPLES.map((ex, i) => (
+                    <button key={i} className="example-chip" onClick={() => handleExampleClick(ex)}>
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input de chat */}
+            <div className="chat-input-wrap">
               <textarea
-                className="caso-textarea"
-                placeholder="Ej: Me despidieron hace 2 semanas sin darme ninguna explicación. Llevaba 4 años en la empresa con contrato indefinido. Solo me dijeron que ya no me necesitaban. Todavía no me han pagado la liquidación ni las vacaciones pendientes..."
-                value={story}
-                onChange={e => setStory(e.target.value)}
-                rows={8}
-              />
-              <div className="caso-textarea-footer">
-                <span className={`char-count ${story.length >= 30 ? 'char-count--ok' : ''}`}>
-                  {story.length < 30
-                    ? `Mínimo ${30 - story.length} caracteres más`
-                    : `${story.length} caracteres ✓`
+                className="chat-input"
+                placeholder="Escribe aquí tu situación... (Enter para enviar)"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleChatSend()
                   }
-                </span>
-              </div>
+                }}
+                rows={2}
+                disabled={isTyping}
+              />
+              <button
+                className={`chat-send-btn ${!chatInput.trim() || isTyping ? 'chat-send-btn--disabled' : ''}`}
+                onClick={() => handleChatSend()}
+                disabled={!chatInput.trim() || isTyping}
+                aria-label="Enviar mensaje"
+              >
+                <ArrowRight size={16} />
+              </button>
             </div>
-
-            <div className="caso-examples">
-              <span className="examples-label">O elige un caso similar:</span>
-              <div className="examples-list">
-                {CASE_EXAMPLES.map((ex, i) => (
-                  <button key={i} className="example-chip" onClick={() => handleExampleClick(ex)}>
-                    {ex}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              className={`btn-cta btn-cta--full ${!canSubmit ? 'btn-cta--disabled' : ''}`}
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-            >
-              Obtener diagnóstico gratuito
-              <ArrowRight size={18} />
-            </button>
 
             <p className="caso-disclaimer">
               🔒 Tu información es confidencial y está protegida por la Ley 1581 de 2012.
@@ -488,11 +598,10 @@ const Caso = () => {
           </div>
         )}
 
-        {/* ── CAPTURA DE LEAD (gate antes del resultado) ── */}
+        {/* ── CAPTURA DE LEAD ── */}
         {step === 'capture' && (
           <div className="caso-capture container-narrow animate-fade-up">
             <div className="capture-card">
-
               <div className="capture-header">
                 <div className="capture-icon">
                   <CheckCircle2 size={28} style={{ color: '#00B4A0' }} />
@@ -516,7 +625,6 @@ const Caso = () => {
                     autoFocus
                   />
                 </div>
-
                 <div className="capture-field">
                   <label htmlFor="cap-contacto">WhatsApp o correo electrónico</label>
                   <input
@@ -528,7 +636,6 @@ const Caso = () => {
                     autoComplete="email"
                   />
                 </div>
-
                 <button
                   type="submit"
                   className={`btn-cta btn-cta--full ${!canSubmitLead ? 'btn-cta--disabled' : ''}`}
@@ -549,10 +656,9 @@ const Caso = () => {
 
         {/* ── RESULTADO ── */}
         {step === 'result' && result && (() => {
-          const compConfig = COMPLEXITY_CONFIG[result.complejidad] || COMPLEXITY_CONFIG.media
-          const urgConfig  = URGENCY_LABELS[result.urgencia]
-          // El precio viene del mock específico de categoría, no del nivel genérico
-          const precioLabel = result.precio_label || compConfig.precio_label || '—'
+          const compConfig  = COMPLEXITY_CONFIG[result.complejidad] || COMPLEXITY_CONFIG.media
+          const urgConfig   = URGENCY_LABELS[result.urgencia]
+          const precioLabel = result.precio_label || '—'
           const precioNote  = result.precio_note  || 'pago único'
 
           return (
@@ -566,7 +672,7 @@ const Caso = () => {
                 </div>
               </div>
 
-              {/* Cotización dinámica — precio por categoría, no por nivel genérico */}
+              {/* Cotización dinámica */}
               <div className="result-cotizacion">
                 <div className="cotizacion-top">
                   <span
@@ -647,7 +753,7 @@ const Caso = () => {
                 </div>
               </div>
 
-              {/* CTA con precio dinámico */}
+              {/* CTA */}
               <div className="result-cta">
                 <div className="result-cta__info">
                   <h3>Estrategia completa + Documentos listos para radicar</h3>
@@ -672,10 +778,7 @@ const Caso = () => {
                       <ArrowRight size={18} />
                     </button>
                   )}
-                  <button
-                    className="btn-ghost-sm"
-                    onClick={() => { setStep('form'); setResult(null); setLeadData({ nombre: '', contacto: '' }); setPagoMsg(false) }}
-                  >
+                  <button className="btn-ghost-sm" onClick={handleReset}>
                     <ArrowLeft size={14} />
                     Volver a editar
                   </button>

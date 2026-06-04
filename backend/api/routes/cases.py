@@ -167,6 +167,123 @@ async def process_case(request: FullPipelineRequest):
         )
 
 
+# === Schemas del Asistente ===
+
+class MessageItem(BaseModel):
+    """Un mensaje del historial de conversación."""
+    role: str = Field(..., description="'user' o 'assistant'")
+    content: str = Field(..., min_length=1)
+
+
+class ConversarRequest(BaseModel):
+    """Solicitud al agente asistente conversacional."""
+    messages: list[MessageItem] = Field(
+        ...,
+        min_length=1,
+        description="Historial completo de mensajes (incluye el primer saludo del asistente)",
+    )
+
+
+class ConversarResponse(BaseModel):
+    """Respuesta del agente asistente."""
+    info_completa: bool
+    # Cuando info_completa = False
+    siguiente_pregunta: Optional[str] = None
+    info_recolectada_hasta_ahora: Optional[dict] = None
+    # Cuando info_completa = True
+    mensaje_usuario: Optional[str] = None
+    caso_estructurado: Optional[dict] = None
+    # Resultado del triaje (solo cuando info_completa = True y el triaje tuvo éxito)
+    triage_result: Optional[dict] = None
+    rama: Optional[str] = None
+    urgencia: Optional[str] = None
+    diagnosis_formatted: Optional[str] = None
+    payment_required_for: Optional[list[str]] = None
+
+
+# === Endpoint conversacional ===
+
+@router.post("/conversar", response_model=ConversarResponse)
+async def conversar(request: ConversarRequest):
+    """
+    Agente conversacional de recolección de información legal.
+
+    Recibe el historial de mensajes y devuelve la siguiente respuesta
+    del asistente. Cuando info_completa=True, ejecuta automáticamente
+    el triaje legal y devuelve el diagnóstico inicial.
+
+    Máximo 8 turnos de usuario para controlar costos.
+    """
+    from agents.assistant import AssistantAgent
+    from agents.triage import TriageAgent
+
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
+    # Paso 1 — Asistente recolecta información
+    try:
+        assistant = AssistantAgent()
+        result = assistant.converse(messages)
+    except Exception as e:
+        logger.error("conversar_assistant_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Error en asistente: {str(e)}")
+
+    # Paso 2 — Si la info está incompleta, devolver siguiente pregunta
+    if not result.get("info_completa"):
+        return ConversarResponse(
+            info_completa=False,
+            siguiente_pregunta=result.get(
+                "siguiente_pregunta",
+                "¿Podrías contarme un poco más sobre lo que pasó?"
+            ),
+            info_recolectada_hasta_ahora=result.get("info_recolectada_hasta_ahora", {}),
+        )
+
+    # Paso 3 — info_completa=True → ejecutar triaje automáticamente
+    caso = result.get("caso_estructurado", {})
+    relato = caso.get("hechos") or " ".join(
+        m["content"] for m in messages if m["role"] == "user"
+    )
+
+    try:
+        triage_agent = TriageAgent()
+        triage = triage_agent.diagnose(
+            user_story=relato,
+            user_context={
+                "ciudad": caso.get("ciudad", ""),
+                "tipo": caso.get("tipo", ""),
+                "urgencia_declarada": caso.get("urgencia", ""),
+            },
+        )
+        clasificacion = triage.get("clasificacion", {})
+        formatted = triage_agent.format_free_diagnosis(triage)
+
+        logger.info(
+            "conversar_triage_complete",
+            rama=clasificacion.get("rama_derecho", ""),
+            urgencia=clasificacion.get("urgencia", ""),
+        )
+
+        return ConversarResponse(
+            info_completa=True,
+            mensaje_usuario=result.get("mensaje_usuario", ""),
+            caso_estructurado=caso,
+            triage_result=triage,
+            rama=clasificacion.get("rama_derecho", ""),
+            urgencia=clasificacion.get("urgencia", ""),
+            diagnosis_formatted=formatted,
+            payment_required_for=triage.get("requiere_pago_para", []),
+        )
+
+    except Exception as e:
+        logger.error("conversar_triage_error", error=str(e))
+        # Devolvemos la info del asistente aunque el triaje falle
+        return ConversarResponse(
+            info_completa=True,
+            mensaje_usuario=result.get("mensaje_usuario", ""),
+            caso_estructurado=caso,
+        )
+
+
 @router.get("/stats")
 async def get_stats():
     """Estadísticas del corpus legal y pipeline."""
