@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   ArrowRight, ArrowLeft, CheckCircle2, DollarSign,
-  Scale, Lock, CreditCard, Paperclip, FileText,
+  Scale, Lock, CreditCard, Paperclip, FileText, RefreshCw,
 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 import './Caso.css'
@@ -292,6 +292,7 @@ const Caso = () => {
   const [leadData,   setLeadData]  = useState({ nombre: '', contacto: '' })
   const [loadingMsg, setLoadingMsg]= useState(0)
   const [pagoMsg,    setPagoMsg]   = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   /* Refs */
   const chatEndRef  = useRef(null)
@@ -531,6 +532,7 @@ const Caso = () => {
     setResult(null)
     setLeadData({ nombre: '', contacto: '' })
     setPagoMsg(false)
+    setConfirmReset(false)
     setStep('chat')
   }
 
@@ -640,10 +642,35 @@ const Caso = () => {
           <div className="caso-chat container-narrow animate-fade-up">
 
             <div className="caso-chat__header">
-              <span className="section-tag">Asistente legal</span>
-              <h1>Cuéntanos qué pasó</h1>
-              <p>El asistente te guiará con preguntas para preparar tu diagnóstico gratuito.</p>
+              <div className="chat-header-content">
+                <span className="section-tag">Asistente legal</span>
+                <h1>Cuéntanos qué pasó</h1>
+                <p>El asistente te guiará con preguntas para preparar tu diagnóstico gratuito.</p>
+              </div>
+              <button
+                className="chat-reset-btn"
+                onClick={() => setConfirmReset(v => !v)}
+                title="Reiniciar conversación"
+                type="button"
+              >
+                <RefreshCw size={14} />
+              </button>
             </div>
+
+            {/* Confirmación de reset */}
+            {confirmReset && (
+              <div className="chat-reset-confirm">
+                <span>¿Estás seguro? Se borrará todo lo que has escrito hasta ahora.</span>
+                <div className="chat-reset-confirm__actions">
+                  <button className="chat-reset-confirm__yes" onClick={handleReset}>
+                    Sí, borrar
+                  </button>
+                  <button className="chat-reset-confirm__no" onClick={() => setConfirmReset(false)}>
+                    No
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Mensajes */}
             <div className="chat-messages">
