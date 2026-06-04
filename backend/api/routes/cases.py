@@ -1,6 +1,7 @@
 """Rutas de la API para gestión de casos legales."""
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional
 import io
@@ -81,6 +82,77 @@ class PipelineResponse(BaseModel):
     document: Optional[dict] = None
     audit_decision: Optional[str] = None
     audit_result: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class GenerateStrategyRequest(BaseModel):
+    """Solicitud del flujo completo hasta PDF."""
+    story: str = Field(..., min_length=20, max_length=10000)
+    user_data: dict = Field(
+        ...,
+        description="Datos del usuario: nombre, cedula, direccion, telefono, correo, ciudad",
+        json_schema_extra={
+            "examples": [{
+                "nombre": "Maria Lopez Garcia",
+                "cedula": "1234567890",
+                "direccion": "Calle 45 #23-10, Bogota",
+                "telefono": "310 234 5678",
+                "correo": "maria@correo.com",
+                "ciudad": "Bogota",
+            }]
+        },
+    )
+    document_type: Optional[str] = Field(
+        None,
+        description="Tipo de documento (tutela, derecho_peticion, queja, denuncia...)",
+    )
+    payment_reference: Optional[str] = Field(
+        None, description="Referencia del pago en Wompi"
+    )
+    test_mode: bool = Field(
+        False,
+        description="Si es True, omite la verificacion de pago (solo para testing)",
+    )
+
+
+class StrategyNextStep(BaseModel):
+    orden: int
+    accion: str
+    detalle: Optional[str] = None
+    plazo: Optional[str] = None
+    ante_quien: Optional[str] = None
+    documentos: Optional[list[str]] = None
+
+
+class PlazoLegal(BaseModel):
+    accion: str
+    plazo: str
+    norma: Optional[str] = None
+    desde_cuando: Optional[str] = None
+
+
+class GenerateStrategyResponse(BaseModel):
+    """Respuesta completa del pipeline con PDF adjunto."""
+    success: bool
+    stage: str
+
+    # Documento generado
+    document: Optional[dict] = None
+    document_pdf_b64: Optional[str] = None   # PDF codificado en Base64
+
+    # Análisis de agentes
+    triage_result: Optional[dict] = None
+    specialist_analysis: Optional[dict] = None
+    opposing_counsel_analysis: Optional[dict] = None
+    audit_result: Optional[dict] = None
+    audit_decision: Optional[str] = None
+
+    # Resumen ejecutivo para el usuario
+    calificacion_caso: Optional[str] = None  # solido | riesgoso | debil
+    next_steps: Optional[list[StrategyNextStep]] = None
+    plazos_criticos: Optional[list[PlazoLegal]] = None
+    probabilidad_exito: Optional[str] = None
+
     error: Optional[str] = None
 
 
@@ -486,6 +558,185 @@ async def upload_document(http_request: Request, file: UploadFile = File(...)):
             status_code=500,
             detail="Error al procesar el documento. Intenta nuevamente.",
         )
+
+
+@router.post("/generate-strategy", response_model=GenerateStrategyResponse)
+async def generate_strategy(request: GenerateStrategyRequest):
+    """
+    Pipeline completo con PDF:
+    Triaje → Especialista → Abogado Contrario → [refuerzo si débil]
+    → Redactor → Auditor (max 3 ciclos) → PDF descargable.
+
+    Flags:
+    - test_mode=True: omite verificación de pago (para testing)
+    - payment_reference: referencia de Wompi (en producción)
+
+    Devuelve:
+    - document: JSON estructurado del documento legal
+    - document_pdf_b64: PDF en Base64 (decodificar en frontend)
+    - opposing_counsel_analysis: análisis adversarial
+    - next_steps: pasos concretos para el ciudadano
+    - plazos_criticos: fechas límite importantes
+    - calificacion_caso: solido | riesgoso | debil
+    """
+    # ── 1. Verificación de pago (o modo prueba) ───────────────────────────────
+    if not request.test_mode:
+        if not request.payment_reference:
+            raise HTTPException(
+                status_code=402,
+                detail="Se requiere referencia de pago. Usa test_mode=true para pruebas.",
+            )
+        # TODO: Verificar pago real con Wompi API
+        # payment_valid = await verify_wompi_payment(request.payment_reference)
+        # if not payment_valid:
+        #     raise HTTPException(status_code=402, detail="Pago no verificado en Wompi")
+        logger.info(
+            "generate_strategy_payment_bypassed",
+            payment_reference=request.payment_reference,
+            note="Wompi verification pending implementation",
+        )
+    else:
+        logger.info("generate_strategy_test_mode")
+
+    # ── 2. Ejecutar pipeline completo ────────────────────────────────────────
+    try:
+        result = run_full_pipeline(
+            user_story=request.story,
+            user_data=request.user_data,
+            document_type=request.document_type or "",
+        )
+    except Exception as e:
+        logger.error("generate_strategy_pipeline_error", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en el pipeline legal: {str(e)}",
+        )
+
+    stage = result.get("pipeline_stage", "unknown")
+
+    # ── 3. Si el pipeline falló antes de generar documento ───────────────────
+    if stage not in ("complete", "escalated") and result.get("error"):
+        return GenerateStrategyResponse(
+            success=False,
+            stage=stage,
+            triage_result=result.get("triage_result"),
+            error=result.get("error", "Error desconocido en el pipeline"),
+        )
+
+    # ── 4. Extraer datos clave ────────────────────────────────────────────────
+    document             = result.get("document", {})
+    triage_result        = result.get("triage_result", {})
+    specialist_analysis  = result.get("specialist_analysis", {})
+    opposing_counsel     = result.get("opposing_counsel_analysis", {})
+    audit_result         = result.get("audit_result", {})
+    audit_decision       = result.get("audit_decision", "")
+
+    calificacion_caso = opposing_counsel.get("calificacion_caso")
+
+    # next_steps — desde los pasos de la estrategia del especialista
+    next_steps: list[StrategyNextStep] = []
+    estrategia = specialist_analysis.get("estrategia", {})
+    if isinstance(estrategia, dict):
+        pasos = estrategia.get("pasos", [])
+    else:
+        pasos = []
+    for paso in pasos:
+        if isinstance(paso, dict):
+            next_steps.append(
+                StrategyNextStep(
+                    orden=paso.get("orden", len(next_steps) + 1),
+                    accion=paso.get("accion", ""),
+                    detalle=paso.get("detalle"),
+                    plazo=paso.get("plazo"),
+                    ante_quien=paso.get("ante_quien"),
+                    documentos=paso.get("documentos"),
+                )
+            )
+
+    # plazos_criticos — desde el especialista
+    plazos_criticos: list[PlazoLegal] = []
+    for p in specialist_analysis.get("plazos_legales", []):
+        if isinstance(p, dict):
+            plazos_criticos.append(
+                PlazoLegal(
+                    accion=p.get("accion", ""),
+                    plazo=p.get("plazo", ""),
+                    norma=p.get("norma"),
+                    desde_cuando=p.get("desde_cuando"),
+                )
+            )
+
+    probabilidad_exito = specialist_analysis.get("probabilidad_exito")
+
+    # ── 5. Generar PDF ────────────────────────────────────────────────────────
+    document_pdf_b64: str | None = None
+    if document:
+        try:
+            from documents.pdf_generator import generate_pdf
+            pdf_bytes = generate_pdf(
+                document=document,
+                opposing_counsel=opposing_counsel if opposing_counsel else None,
+                triage_result=triage_result,
+                specialist_analysis=specialist_analysis,
+            )
+            document_pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+            logger.info(
+                "generate_strategy_pdf_ok",
+                size_kb=len(pdf_bytes) // 1024,
+                stage=stage,
+            )
+        except Exception as e:
+            logger.error("generate_strategy_pdf_error", error=str(e))
+            # No bloqueamos la respuesta si falla el PDF
+            document_pdf_b64 = None
+
+    # ── 6. Log de tokens del pipeline completo ────────────────────────────────
+    logger.info(
+        "generate_strategy_complete",
+        stage=stage,
+        calificacion_oc=calificacion_caso,
+        audit_decision=audit_decision,
+        rewrite_cycles=result.get("rewrite_count", 0),
+        rama=result.get("rama", ""),
+        test_mode=request.test_mode,
+    )
+
+    return GenerateStrategyResponse(
+        success=(stage in ("complete", "escalated")),
+        stage=stage,
+        document=document if document else None,
+        document_pdf_b64=document_pdf_b64,
+        triage_result=triage_result,
+        specialist_analysis=specialist_analysis,
+        opposing_counsel_analysis=opposing_counsel if opposing_counsel else None,
+        audit_result=audit_result if audit_result else None,
+        audit_decision=audit_decision or None,
+        calificacion_caso=calificacion_caso,
+        next_steps=next_steps if next_steps else None,
+        plazos_criticos=plazos_criticos if plazos_criticos else None,
+        probabilidad_exito=probabilidad_exito,
+        error=result.get("error") or None,
+    )
+
+
+@router.get("/generate-strategy/{case_id}/pdf")
+async def download_strategy_pdf(case_id: str):
+    """
+    Endpoint auxiliar: devuelve el PDF directamente como archivo descargable.
+
+    Uso: GET /api/cases/generate-strategy/{reference}/pdf
+    El frontend puede abrir esta URL en una nueva pestaña o hacer fetch + blob.
+
+    NOTA: En producción se generaría desde un store (S3/Redis) identificado por
+    case_id. Por ahora solo documenta el contrato del endpoint.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Este endpoint requiere persistencia de sesión. "
+            "Usa POST /generate-strategy y decodifica el campo 'document_pdf_b64'."
+        ),
+    )
 
 
 @router.get("/stats")
