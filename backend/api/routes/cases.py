@@ -1,11 +1,14 @@
 """Rutas de la API para gestión de casos legales."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 from pydantic import BaseModel, Field
 from typing import Optional
+import io
+import base64
 import structlog
 
 from agents.graph import run_free_diagnosis, run_full_pipeline
+from config import get_settings
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -79,6 +82,73 @@ class PipelineResponse(BaseModel):
     audit_decision: Optional[str] = None
     audit_result: Optional[dict] = None
     error: Optional[str] = None
+
+
+# === Schemas del Asistente ===
+
+class MessageItem(BaseModel):
+    """Un mensaje del historial de conversación."""
+    role: str = Field(..., description="'user' o 'assistant'")
+    content: str = Field(..., min_length=1)
+
+
+class ConversarRequest(BaseModel):
+    """Solicitud al agente asistente conversacional."""
+    messages: list[MessageItem] = Field(
+        ...,
+        min_length=1,
+        description="Historial completo de mensajes (incluye el saludo inicial del asistente)",
+    )
+
+
+class ConversarResponse(BaseModel):
+    """Respuesta del agente asistente."""
+    info_completa: bool
+    # Cuando info_completa = False
+    siguiente_pregunta: Optional[str] = None
+    info_recolectada_hasta_ahora: Optional[dict] = None
+    # Cuando info_completa = True
+    mensaje_usuario: Optional[str] = None
+    caso_estructurado: Optional[dict] = None
+    # Resultado del triaje (solo cuando info_completa = True y el triaje tuvo éxito)
+    triage_result: Optional[dict] = None
+    rama: Optional[str] = None
+    urgencia: Optional[str] = None
+    diagnosis_formatted: Optional[str] = None
+    payment_required_for: Optional[list[str]] = None
+
+
+# === Rate limiting (Redis) ===
+
+async def _check_rate_limit(request: Request) -> tuple[bool, str]:
+    """
+    1 conversación gratuita por IP cada 24h.
+    Usa Redis con SET NX (atómico). Falla silenciosamente si Redis no está disponible.
+    """
+    try:
+        import redis.asyncio as aioredis
+        settings = get_settings()
+        client_ip = getattr(request.client, "host", "unknown")
+        key = f"diag_limit:{client_ip}"
+
+        async with aioredis.from_url(settings.redis_url, decode_responses=True) as r:
+            # SET key value EX 86400 NX — atómico, solo setea si no existe
+            set_ok = await r.set(key, "1", ex=86400, nx=True)
+            if set_ok:
+                logger.info("rate_limit_new", ip=client_ip)
+                return True, ""
+
+            ttl = await r.ttl(key)
+            horas = max(1, ttl // 3600)
+            logger.info("rate_limit_blocked", ip=client_ip, ttl_seconds=ttl)
+            return False, (
+                f"Ya iniciaste un diagnóstico hoy. "
+                f"Continúa con tu caso anterior o vuelve en {horas} hora(s)."
+            )
+    except Exception as e:
+        # Redis no disponible — permitir siempre (falla silenciosa)
+        logger.warning("rate_limit_redis_error", error=str(e))
+        return True, ""
 
 
 # === Endpoints ===
@@ -167,44 +237,8 @@ async def process_case(request: FullPipelineRequest):
         )
 
 
-# === Schemas del Asistente ===
-
-class MessageItem(BaseModel):
-    """Un mensaje del historial de conversación."""
-    role: str = Field(..., description="'user' o 'assistant'")
-    content: str = Field(..., min_length=1)
-
-
-class ConversarRequest(BaseModel):
-    """Solicitud al agente asistente conversacional."""
-    messages: list[MessageItem] = Field(
-        ...,
-        min_length=1,
-        description="Historial completo de mensajes (incluye el primer saludo del asistente)",
-    )
-
-
-class ConversarResponse(BaseModel):
-    """Respuesta del agente asistente."""
-    info_completa: bool
-    # Cuando info_completa = False
-    siguiente_pregunta: Optional[str] = None
-    info_recolectada_hasta_ahora: Optional[dict] = None
-    # Cuando info_completa = True
-    mensaje_usuario: Optional[str] = None
-    caso_estructurado: Optional[dict] = None
-    # Resultado del triaje (solo cuando info_completa = True y el triaje tuvo éxito)
-    triage_result: Optional[dict] = None
-    rama: Optional[str] = None
-    urgencia: Optional[str] = None
-    diagnosis_formatted: Optional[str] = None
-    payment_required_for: Optional[list[str]] = None
-
-
-# === Endpoint conversacional ===
-
 @router.post("/conversar", response_model=ConversarResponse)
-async def conversar(request: ConversarRequest):
+async def conversar(http_request: Request, payload: ConversarRequest):
     """
     Agente conversacional de recolección de información legal.
 
@@ -212,12 +246,21 @@ async def conversar(request: ConversarRequest):
     del asistente. Cuando info_completa=True, ejecuta automáticamente
     el triaje legal y devuelve el diagnóstico inicial.
 
-    Máximo 8 turnos de usuario para controlar costos.
+    Límites:
+    - Máximo 5 turnos de usuario (costo-eficiente)
+    - 1 conversación gratuita por IP cada 24h (requiere Redis)
     """
     from agents.assistant import AssistantAgent
     from agents.triage import TriageAgent
 
-    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+    messages = [{"role": m.role, "content": m.content} for m in payload.messages]
+    user_turns = sum(1 for m in messages if m["role"] == "user")
+
+    # Rate limit — solo en el primer turno del usuario
+    if user_turns == 1:
+        allowed, limit_msg = await _check_rate_limit(http_request)
+        if not allowed:
+            raise HTTPException(status_code=429, detail=limit_msg)
 
     # Paso 1 — Asistente recolecta información
     try:
@@ -227,13 +270,19 @@ async def conversar(request: ConversarRequest):
         logger.error("conversar_assistant_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Error en asistente: {str(e)}")
 
-    # Paso 2 — Si la info está incompleta, devolver siguiente pregunta
+    # Paso 2 — Información incompleta → devolver siguiente pregunta
     if not result.get("info_completa"):
+        logger.info(
+            "conversar_turn",
+            ip=getattr(http_request.client, "host", "?"),
+            turn=user_turns,
+            info_completa=False,
+        )
         return ConversarResponse(
             info_completa=False,
             siguiente_pregunta=result.get(
                 "siguiente_pregunta",
-                "¿Podrías contarme un poco más sobre lo que pasó?"
+                "¿Podrías contarme un poco más sobre tu situación?"
             ),
             info_recolectada_hasta_ahora=result.get("info_recolectada_hasta_ahora", {}),
         )
@@ -258,9 +307,12 @@ async def conversar(request: ConversarRequest):
         formatted = triage_agent.format_free_diagnosis(triage)
 
         logger.info(
-            "conversar_triage_complete",
+            "conversar_complete",
+            ip=getattr(http_request.client, "host", "?"),
+            turns=user_turns,
             rama=clasificacion.get("rama_derecho", ""),
             urgencia=clasificacion.get("urgencia", ""),
+            with_documents=any(m.get("role") == "document" for m in messages if isinstance(m, dict)),
         )
 
         return ConversarResponse(
@@ -276,11 +328,163 @@ async def conversar(request: ConversarRequest):
 
     except Exception as e:
         logger.error("conversar_triage_error", error=str(e))
-        # Devolvemos la info del asistente aunque el triaje falle
+        # Devolver info del asistente aunque el triaje falle
         return ConversarResponse(
             info_completa=True,
             mensaje_usuario=result.get("mensaje_usuario", ""),
             caso_estructurado=caso,
+        )
+
+
+@router.post("/upload-document")
+async def upload_document(http_request: Request, file: UploadFile = File(...)):
+    """
+    Procesa un documento (PDF/imagen) con Claude y extrae su contenido relevante.
+
+    Plan gratuito:
+    - Tipos aceptados: PDF, JPG, PNG
+    - Tamaño máximo: 5 MB
+    - Límite: 3 páginas (PDF). Si supera, devuelve mensaje informativo en vez de error.
+    - Los documentos NO se almacenan — solo se procesan en memoria.
+    """
+    settings = get_settings()
+
+    ALLOWED_TYPES = {"image/jpeg", "image/png", "image/jpg", "application/pdf"}
+    MAX_SIZE     = 5 * 1024 * 1024  # 5 MB
+    MAX_PAGES    = 3
+
+    # Validar tipo
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de archivo no soportado. Sube un PDF, JPG o PNG.",
+        )
+
+    # Leer y validar tamaño
+    data = await file.read()
+    if len(data) > MAX_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo supera el límite de 5 MB.",
+        )
+
+    page_count   = 1
+    extracted_text = None
+
+    # PDF → contar páginas y extraer texto
+    if content_type == "application/pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(data))
+            page_count = len(reader.pages)
+
+            if page_count > MAX_PAGES:
+                logger.info(
+                    "document_upload_limit",
+                    filename=file.filename,
+                    pages=page_count,
+                )
+                return {
+                    "success": False,
+                    "limit_reached": True,
+                    "message": (
+                        f"Tu documento tiene {page_count} páginas. "
+                        f"Para procesar documentos más extensos necesitas el plan completo. "
+                        f"Continúa con el diagnóstico gratuito y luego podrás adjuntarlo."
+                    ),
+                }
+
+            # Extraer texto de las páginas permitidas
+            extracted_text = "\n\n".join(
+                page.extract_text() or "" for page in reader.pages
+            ).strip()
+
+        except ImportError:
+            logger.warning("pypdf_not_installed")
+        except Exception as e:
+            logger.warning("pdf_extract_error", error=str(e))
+
+    # Procesar con Claude
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=settings.anthropic_api_key)
+
+        extraction_prompt = (
+            "Este documento fue subido por un usuario que necesita asistencia legal en Colombia. "
+            "Extrae y resume el contenido más relevante para el caso: fechas, partes involucradas, "
+            "montos, incumplimientos, condiciones, cláusulas o cualquier dato jurídicamente relevante. "
+            "Sé conciso y directo. Responde en español colombiano."
+        )
+
+        if content_type in ("image/jpeg", "image/jpg", "image/png"):
+            # Vision API
+            media_type = "image/png" if content_type == "image/png" else "image/jpeg"
+            b64 = base64.standard_b64encode(data).decode("utf-8")
+            messages = [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": b64,
+                        },
+                    },
+                    {"type": "text", "text": extraction_prompt},
+                ],
+            }]
+        else:
+            # PDF — usar texto extraído
+            if extracted_text:
+                messages = [{
+                    "role": "user",
+                    "content": (
+                        f"CONTENIDO DEL DOCUMENTO PDF:\n\n{extracted_text[:8000]}\n\n"
+                        f"{extraction_prompt}"
+                    ),
+                }]
+            else:
+                return {
+                    "success": False,
+                    "limit_reached": False,
+                    "message": (
+                        "No pude extraer el texto del PDF. "
+                        "Por favor describe el contenido manualmente y continuamos."
+                    ),
+                }
+
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=800,
+            messages=messages,
+        )
+        summary = response.content[0].text.strip()
+
+        logger.info(
+            "document_processed",
+            ip=getattr(http_request.client, "host", "?"),
+            filename=file.filename,
+            content_type=content_type,
+            size_kb=len(data) // 1024,
+            pages=page_count,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )
+
+        return {
+            "success": True,
+            "filename": file.filename,
+            "pages": page_count,
+            "summary": summary,
+        }
+
+    except Exception as e:
+        logger.error("document_process_error", error=str(e), filename=file.filename)
+        raise HTTPException(
+            status_code=500,
+            detail="Error al procesar el documento. Intenta nuevamente.",
         )
 
 
