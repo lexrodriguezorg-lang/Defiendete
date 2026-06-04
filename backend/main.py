@@ -1,5 +1,8 @@
 """Defiéndete — API principal."""
 
+import sys
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
@@ -7,19 +10,56 @@ import structlog
 from config import get_settings
 from api.routes import auth, cases, payments, documents, chat
 
-structlog.configure(
-    processors=[
-        structlog.stdlib.filter_by_level,
+settings = get_settings()
+
+
+def _configure_logging(debug: bool) -> None:
+    """
+    Configura structlog integrado con el stdlib logging de Python.
+
+    Usa stdlib.LoggerFactory() — compatible con uvicorn/Railway porque
+    stdlib Logger tiene los atributos .disabled e .isEnabledFor() que
+    algunos procesadores de structlog necesitan.
+
+    - debug=True  → salida coloreada en consola (desarrollo)
+    - debug=False → JSON por línea (Railway, Datadog, CloudWatch)
+    """
+    shared_processors: list = [
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
-        structlog.dev.ConsoleRenderer(),
-    ],
-    wrapper_class=structlog.stdlib.BoundLogger,
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-)
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.UnicodeDecoder(),
+    ]
 
-settings = get_settings()
+    renderer = (
+        structlog.dev.ConsoleRenderer()
+        if debug
+        else structlog.processors.JSONRenderer()
+    )
+
+    structlog.configure(
+        processors=shared_processors + [renderer],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        # stdlib.LoggerFactory() → devuelve un logging.Logger estándar;
+        # PrintLoggerFactory() devuelve PrintLogger que NO tiene .disabled
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    # Configurar stdlib logging para capturar también los logs de
+    # uvicorn, httpx, sqlalchemy, etc.
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=logging.DEBUG if debug else logging.INFO,
+        force=True,
+    )
+
+
+_configure_logging(debug=settings.debug)
 
 app = FastAPI(
     title=settings.app_name,
