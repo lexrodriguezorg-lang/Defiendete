@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   ArrowRight, ArrowLeft, CheckCircle2, DollarSign,
@@ -273,26 +273,35 @@ const buildResult = (data, messages) => {
 /* ── Componente principal ── */
 const Caso = () => {
   const { user, isAuthenticated } = useAuth()
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
 
-  /* Pasos: chat → loading → capture → result */
+  /* Texto inicial enviado desde la Landing */
+  const pendingInitialTextRef = useRef(location.state?.initialText || '')
+
+  /* Pasos: chat → loading → result (registro va inline en el chat) */
   const [step, setStep]         = useState('chat')
 
-  /* Chat */
-  const [chatMessages, setChatMessages] = useState(
-    () => lsLoad() || [{ role: 'assistant', content: FIRST_MESSAGE }]
-  )
+  /* Chat — si venimos de Landing con texto, siempre empezamos en limpio */
+  const [chatMessages, setChatMessages] = useState(() => {
+    if (location.state?.initialText) { lsClear(); return [{ role: 'assistant', content: FIRST_MESSAGE }] }
+    return lsLoad() || [{ role: 'assistant', content: FIRST_MESSAGE }]
+  })
   const [chatInput,   setChatInput]   = useState('')
   const [entryInput,  setEntryInput]  = useState('')
   const [isTyping,    setIsTyping]    = useState(false)
   const [isReadingDoc,setIsReadingDoc]= useState(false)
 
   /* Resto del flujo */
-  const [result,     setResult]    = useState(null)
-  const [leadData,   setLeadData]  = useState({ nombre: '', contacto: '' })
-  const [loadingMsg, setLoadingMsg]= useState(0)
-  const [pagoMsg,    setPagoMsg]   = useState(false)
+  const [result,       setResult]       = useState(null)
+  const [leadData,     setLeadData]     = useState({ nombre: '', contacto: '' })
+  const [loadingMsg,   setLoadingMsg]   = useState(0)
+  const [pagoMsg,      setPagoMsg]      = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+
+  /* Registro inline en el chat */
+  const [isAwaitingReg, setIsAwaitingReg] = useState(false)
+  const [pendingResult, setPendingResult] = useState(null)
 
   /* Refs */
   const chatEndRef  = useRef(null)
@@ -315,6 +324,15 @@ const Caso = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, isTyping, isReadingDoc])
 
+  /* Auto-submit del texto inicial proveniente de la Landing */
+  useEffect(() => {
+    if (pendingInitialTextRef.current) {
+      const text = pendingInitialTextRef.current
+      pendingInitialTextRef.current = ''
+      handleChatSend(text)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* Cicla los mensajes del loader */
   useEffect(() => {
     if (step !== 'loading') return
@@ -332,10 +350,8 @@ const Caso = () => {
       setTimeout(() => {
         if (isAuthenticated) {
           setLeadData({ nombre: user?.nombre || '', contacto: user?.email || '' })
-          setStep('result')
-        } else {
-          setStep('capture')
         }
+        setStep('result')
       }, 3800)
     }, 700)
   }
@@ -345,10 +361,26 @@ const Caso = () => {
     if (data.info_completa) {
       const assistantMsg = data.mensaje_usuario || 'Perfecto. Voy a analizar tu caso ahora mismo.'
       const final = [...msgs, { role: 'assistant', content: assistantMsg }]
-      setMessages(final)
-      lsSave(final)
       setIsTyping(false)
-      goToResult(buildResult(data, msgs))
+
+      if (isAuthenticated) {
+        /* Usuario ya registrado → diagnóstico directo */
+        setMessages(final)
+        lsSave(final)
+        setLeadData({ nombre: user?.nombre || '', contacto: user?.email || '' })
+        goToResult(buildResult(data, msgs))
+      } else {
+        /* Pedir nombre y celular de forma natural antes del diagnóstico */
+        const regMsg = {
+          role: 'assistant',
+          content: 'Para preparar tu diagnóstico necesito dos datos rápidos. ¿Cuál es tu nombre y a qué número o correo te puedo enviar el resumen?',
+        }
+        const withReg = [...final, regMsg]
+        setMessages(withReg)
+        lsSave(withReg)
+        setPendingResult(buildResult(data, msgs))
+        setIsAwaitingReg(true)
+      }
     } else {
       const q = data.siguiente_pregunta || '¿Puedes contarme un poco más?'
       const updated = [...msgs, { role: 'assistant', content: q }]
@@ -356,6 +388,14 @@ const Caso = () => {
       lsSave(updated)
       setIsTyping(false)
     }
+  }
+
+  /* ── Enviar registro inline y disparar diagnóstico ── */
+  const handleRegSubmit = (e) => {
+    e?.preventDefault()
+    if (!canSubmitLead || !pendingResult) return
+    setIsAwaitingReg(false)
+    goToResult(pendingResult)
   }
 
   /* ── Enviar mensaje al asistente ── */
@@ -554,7 +594,7 @@ const Caso = () => {
   }
 
   /* ── Indicador de progreso ── */
-  const STEPS_ORDER = ['chat', 'loading', 'capture', 'result']
+  const STEPS_ORDER = ['chat', 'loading', 'result']
   const currentIdx  = STEPS_ORDER.indexOf(step)
   const stepDot = (idx) => {
     if (idx < currentIdx)  return 'step-dot--done'
@@ -575,8 +615,6 @@ const Caso = () => {
             <span className={`step-dot ${stepDot(1)}`} />
             <span className="step-line" />
             <span className={`step-dot ${stepDot(2)}`} />
-            <span className="step-line" />
-            <span className={`step-dot ${stepDot(3)}`} />
           </div>
         </div>
       </header>
@@ -711,53 +749,81 @@ const Caso = () => {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Input del chat */}
-            <div className="chat-input-wrap">
+            {/* Input del chat o formulario de registro inline */}
+            {isAwaitingReg ? (
+              <form className="chat-reg-form" onSubmit={handleRegSubmit}>
+                <input
+                  className="chat-reg-input"
+                  type="text"
+                  placeholder="Tu nombre"
+                  value={leadData.nombre}
+                  onChange={e => setLeadData(d => ({ ...d, nombre: e.target.value }))}
+                  autoFocus
+                />
+                <input
+                  className="chat-reg-input"
+                  type="text"
+                  placeholder="WhatsApp o correo"
+                  value={leadData.contacto}
+                  onChange={e => setLeadData(d => ({ ...d, contacto: e.target.value }))}
+                />
+                <button
+                  type="submit"
+                  className={`btn-cta btn-cta--full ${!canSubmitLead ? 'btn-cta--disabled' : ''}`}
+                  disabled={!canSubmitLead}
+                >
+                  Ver mi diagnóstico <ArrowRight size={16} />
+                </button>
+                <p className="chat-reg-privacy"><Lock size={11} /> Datos protegidos — Ley 1581 de 2012</p>
+              </form>
+            ) : (
+              <div className="chat-input-wrap">
 
-              {/* Botón de adjuntar — solo escritorio, habilitado tras el primer turno */}
-              <button
-                className="chat-upload-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isTyping || isReadingDoc || userTurns < 1}
-                title={userTurns < 1
-                  ? 'Primero cuéntame tu caso, luego podrás adjuntar documentos'
-                  : 'Adjuntar documento (PDF, JPG, PNG — máx 5 MB)'}
-                type="button"
-              >
-                <Paperclip size={16} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                style={{ display: 'none' }}
-                onChange={handleFileUpload}
-              />
+                {/* Botón de adjuntar — solo escritorio, habilitado tras el primer turno */}
+                <button
+                  className="chat-upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isTyping || isReadingDoc || userTurns < 1}
+                  title={userTurns < 1
+                    ? 'Primero cuéntame tu caso, luego podrás adjuntar documentos'
+                    : 'Adjuntar documento (PDF, JPG, PNG — máx 5 MB)'}
+                  type="button"
+                >
+                  <Paperclip size={16} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
 
-              <textarea
-                className="chat-input"
-                placeholder="Escribe aquí tu situación... (Enter para enviar, Shift+Enter nueva línea)"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleChatSend()
-                  }
-                }}
-                rows={2}
-                disabled={isTyping || isReadingDoc}
-              />
+                <textarea
+                  className="chat-input"
+                  placeholder="Escribe aquí tu situación... (Enter para enviar, Shift+Enter nueva línea)"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleChatSend()
+                    }
+                  }}
+                  rows={2}
+                  disabled={isTyping || isReadingDoc}
+                />
 
-              <button
-                className={`chat-send-btn ${!chatInput.trim() || isTyping || isReadingDoc ? 'chat-send-btn--disabled' : ''}`}
-                onClick={() => handleChatSend()}
-                disabled={!chatInput.trim() || isTyping || isReadingDoc}
-                aria-label="Enviar mensaje"
-              >
-                <ArrowRight size={16} />
-              </button>
-            </div>
+                <button
+                  className={`chat-send-btn ${!chatInput.trim() || isTyping || isReadingDoc ? 'chat-send-btn--disabled' : ''}`}
+                  onClick={() => handleChatSend()}
+                  disabled={!chatInput.trim() || isTyping || isReadingDoc}
+                  aria-label="Enviar mensaje"
+                >
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            )}
 
             <p className="caso-disclaimer">
               🔒 Tu información es confidencial — Ley 1581 de 2012. Diagnóstico informativo, no asesoría jurídica.
@@ -783,56 +849,6 @@ const Caso = () => {
                 ))}
               </div>
               <div className="loader-bar-wrap"><div className="loader-bar" /></div>
-            </div>
-          </div>
-        )}
-
-        {/* ── CAPTURA DE LEAD ── */}
-        {step === 'capture' && (
-          <div className="caso-capture container-narrow animate-fade-up">
-            <div className="capture-card">
-              <div className="capture-header">
-                <div className="capture-icon">
-                  <CheckCircle2 size={28} style={{ color: '#00B4A0' }} />
-                </div>
-                <h2>Tu diagnóstico está listo</h2>
-                <p className="capture-subtitle">
-                  Ingresa tus datos para ver tu diagnóstico gratuito y congelar tu tarifa preferencial
-                </p>
-              </div>
-
-              <form className="capture-form" onSubmit={handleLeadSubmit}>
-                <div className="capture-field">
-                  <label htmlFor="cap-nombre">Tu nombre</label>
-                  <input
-                    id="cap-nombre" type="text" placeholder="ej. María Rodríguez"
-                    value={leadData.nombre}
-                    onChange={e => setLeadData(d => ({ ...d, nombre: e.target.value }))}
-                    autoComplete="name" autoFocus
-                  />
-                </div>
-                <div className="capture-field">
-                  <label htmlFor="cap-contacto">WhatsApp o correo electrónico</label>
-                  <input
-                    id="cap-contacto" type="text" placeholder="ej. 3001234567 o tu@correo.com"
-                    value={leadData.contacto}
-                    onChange={e => setLeadData(d => ({ ...d, contacto: e.target.value }))}
-                    autoComplete="email"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className={`btn-cta btn-cta--full ${!canSubmitLead ? 'btn-cta--disabled' : ''}`}
-                  disabled={!canSubmitLead}
-                >
-                  Ver mi diagnóstico gratuito <ArrowRight size={18} />
-                </button>
-              </form>
-
-              <div className="capture-privacy">
-                <Lock size={13} />
-                <span>Datos protegidos bajo la Ley 1581 de 2012. No compartimos tu información.</span>
-              </div>
             </div>
           </div>
         )}
@@ -949,7 +965,7 @@ const Caso = () => {
                     </div>
                   ) : (
                     <button className="btn-cta" onClick={handleComprar}>
-                      {isAuthenticated ? 'Obtener estrategia completa' : 'Crear cuenta y obtener estrategia'}
+                      Recibir mi estrategia completa y documentos
                       <ArrowRight size={18} />
                     </button>
                   )}
