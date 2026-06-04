@@ -14,15 +14,24 @@ const FIRST_MESSAGE =
   'No te preocupes por el orden ni los términos técnicos — ' +
   'yo voy a ayudarte a estructurarlo.'
 
-/* ── Ejemplos de casos ── */
-const CASE_EXAMPLES = [
-  'Me despidieron sin justa causa y no me pagaron la liquidación después de 3 años',
-  'La EPS me negó una cirugía urgente que el médico ordenó hace 2 meses',
-  'Mi ex pareja no me deja ver a mis hijos desde hace 3 meses sin ninguna razón',
-  'Mi arrendador me cortó el agua y la luz para que me fuera del apartamento',
-  'Me estafaron en una compra por internet, pagué y nunca recibí nada',
-  'Mi jefe me acosa laboralmente, me grita y me amenaza delante de todos',
+/* ── Categorías de entrada ── */
+const CATEGORIES = [
+  { id: 'salud',    label: 'Salud y EPS' },
+  { id: 'trabajo',  label: 'Trabajo' },
+  { id: 'vivienda', label: 'Vivienda' },
+  { id: 'compras',  label: 'Compras' },
+  { id: 'familia',  label: 'Familia' },
+  { id: 'bancos',   label: 'Bancos y servicios' },
 ]
+
+const CATEGORY_GREETINGS = {
+  salud:    'Cuéntame qué pasó con tu EPS o situación de salud. Estoy aquí para ayudarte.',
+  trabajo:  'Cuéntame qué pasó en tu trabajo. Estoy aquí para ayudarte.',
+  vivienda: 'Cuéntame qué pasó con tu vivienda o arrendamiento. Estoy aquí para ayudarte.',
+  compras:  'Cuéntame qué pasó con tu compra o el producto que recibiste. Estoy aquí para ayudarte.',
+  familia:  'Cuéntame qué está pasando en tu situación familiar. Estoy aquí para ayudarte.',
+  bancos:   'Cuéntame qué pasó con tu banco o servicio financiero. Estoy aquí para ayudarte.',
+}
 
 const URGENCY_LABELS = {
   critica: { label: '🚨 Urgencia crítica', color: '#F45B5B' },
@@ -274,6 +283,7 @@ const Caso = () => {
     () => lsLoad() || [{ role: 'assistant', content: FIRST_MESSAGE }]
   )
   const [chatInput,   setChatInput]   = useState('')
+  const [entryInput,  setEntryInput]  = useState('')
   const [isTyping,    setIsTyping]    = useState(false)
   const [isReadingDoc,setIsReadingDoc]= useState(false)
 
@@ -290,6 +300,14 @@ const Caso = () => {
   const canSubmitLead = isAuthenticated
     ? true
     : leadData.nombre.trim().length >= 2 && leadData.contacto.trim().length >= 5
+
+  /* Cantidad de turnos del usuario (para habilitar carga de documentos) */
+  const userTurns = chatMessages.filter(m => m.role === 'user').length
+
+  /* Pantalla de entrada — antes del primer mensaje del usuario */
+  const isEntryScreen = step === 'chat' &&
+    chatMessages.length === 1 &&
+    chatMessages[0]?.content === FIRST_MESSAGE
 
   /* Auto-scroll al último mensaje */
   useEffect(() => {
@@ -401,6 +419,33 @@ const Caso = () => {
     if (!file || isTyping || isReadingDoc) return
     e.target.value = ''  // reset input
 
+    /* Validación frontend: tamaño > 5 MB */
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = 'Este archivo es muy grande. Puedes comprimirlo gratis en ilovepdf.com o smallpdf.com y subirlo de nuevo.'
+      const updated = [...chatMessages, { role: 'assistant', content: msg }]
+      setChatMessages(updated)
+      lsSave(updated)
+      return
+    }
+
+    /* Validación frontend: PDF con más de 10 páginas (estimación por marcadores internos) */
+    if (file.type === 'application/pdf') {
+      try {
+        const arrayBuffer = await file.arrayBuffer()
+        const bytes = new Uint8Array(arrayBuffer)
+        const pdfText = new TextDecoder('latin1').decode(bytes)
+        const pageMatches = pdfText.match(/\/Type\s*\/Page[^s]/g)
+        const estimatedPages = pageMatches ? pageMatches.length : 0
+        if (estimatedPages > 10) {
+          const msg = `Tu PDF tiene aproximadamente ${estimatedPages} páginas. Solo procesamos las primeras 3 en el diagnóstico gratis — continuaré con esas. Si quieres, también puedes subir un PDF más corto.`
+          const updated = [...chatMessages, { role: 'assistant', content: msg }]
+          setChatMessages(updated)
+          lsSave(updated)
+          // informativo — seguimos con la subida igual
+        }
+      } catch { /* ignorar errores de estimación */ }
+    }
+
     setIsReadingDoc(true)
 
     const formData = new FormData()
@@ -466,8 +511,6 @@ const Caso = () => {
     }
   }
 
-  const handleExampleClick = (ex) => { if (!isTyping && !isReadingDoc) handleChatSend(ex) }
-
   const handleLeadSubmit = (e) => {
     e.preventDefault()
     if (!canSubmitLead) return
@@ -483,11 +526,29 @@ const Caso = () => {
     const fresh = [{ role: 'assistant', content: FIRST_MESSAGE }]
     setChatMessages(fresh)
     setChatInput('')
+    setEntryInput('')
     lsSave(fresh)
     setResult(null)
     setLeadData({ nombre: '', contacto: '' })
     setPagoMsg(false)
     setStep('chat')
+  }
+
+  /* ── Seleccionar categoría en la pantalla de entrada ── */
+  const handleCategoryClick = (catId) => {
+    const greeting = CATEGORY_GREETINGS[catId]
+    const msgs = [{ role: 'assistant', content: greeting }]
+    setChatMessages(msgs)
+    lsSave(msgs)
+    // isEntryScreen becomes false → chat view appears automatically
+  }
+
+  /* ── Enviar desde la pantalla de entrada ── */
+  const handleEntrySubmit = () => {
+    const text = entryInput.trim()
+    if (!text) return
+    setEntryInput('')
+    handleChatSend(text)
   }
 
   /* ── Indicador de progreso ── */
@@ -520,8 +581,62 @@ const Caso = () => {
 
       <main className="caso-main">
 
+        {/* ── PANTALLA DE ENTRADA ── */}
+        {step === 'chat' && isEntryScreen && (
+          <div className="caso-entry container-narrow animate-fade-up">
+
+            <div className="entry-header">
+              <h1 className="entry-title">Defiéndete está contigo</h1>
+              <p className="entry-subtitle">Cuéntame qué necesitas resolver</p>
+            </div>
+
+            <div className="entry-textarea-wrap">
+              <textarea
+                className="entry-textarea"
+                placeholder="Describe tu situación con tus propias palabras. No necesitas términos legales — solo cuéntame qué pasó..."
+                value={entryInput}
+                onChange={e => setEntryInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleEntrySubmit()
+                  }
+                }}
+                rows={8}
+                autoFocus
+              />
+            </div>
+
+            <button
+              className={`btn-cta btn-cta--full entry-btn ${!entryInput.trim() ? 'btn-cta--disabled' : ''}`}
+              onClick={handleEntrySubmit}
+              disabled={!entryInput.trim()}
+            >
+              Continuar <ArrowRight size={18} />
+            </button>
+
+            <p className="entry-tagline">Consulta gratis · Estrategia con respaldo legal</p>
+
+            <div className="entry-separator" />
+
+            <p className="entry-categories-label">O elige una categoría para empezar</p>
+
+            <div className="entry-chips">
+              {CATEGORIES.map(cat => (
+                <button key={cat.id} className="entry-chip" onClick={() => handleCategoryClick(cat.id)}>
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="caso-disclaimer">
+              🔒 Tu información es confidencial — Ley 1581 de 2012. Diagnóstico informativo, no asesoría jurídica.
+            </p>
+          </div>
+        )}
+
         {/* ── CHAT CONVERSACIONAL ── */}
-        {step === 'chat' && (
+        {step === 'chat' && !isEntryScreen && (
           <div className="caso-chat container-narrow animate-fade-up">
 
             <div className="caso-chat__header">
@@ -569,29 +684,17 @@ const Caso = () => {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Chips de ejemplo — solo chat vacío */}
-            {chatMessages.length === 1 && !isTyping && !isReadingDoc && (
-              <div className="chat-examples">
-                <span className="examples-label">O elige un caso similar para empezar:</span>
-                <div className="examples-list">
-                  {CASE_EXAMPLES.map((ex, i) => (
-                    <button key={i} className="example-chip" onClick={() => handleExampleClick(ex)}>
-                      {ex}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Input del chat */}
             <div className="chat-input-wrap">
 
-              {/* Botón de adjuntar — solo escritorio */}
+              {/* Botón de adjuntar — solo escritorio, habilitado tras el primer turno */}
               <button
                 className="chat-upload-btn"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isTyping || isReadingDoc}
-                title="Adjuntar documento (PDF, JPG, PNG — máx 5 MB)"
+                disabled={isTyping || isReadingDoc || userTurns < 1}
+                title={userTurns < 1
+                  ? 'Primero cuéntame tu caso, luego podrás adjuntar documentos'
+                  : 'Adjuntar documento (PDF, JPG, PNG — máx 5 MB)'}
                 type="button"
               >
                 <Paperclip size={16} />

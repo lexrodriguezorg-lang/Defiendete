@@ -181,6 +181,85 @@ CATALOGO_NORMAS: list[dict] = [
         "rama": "civil",
         "path": "/senado/basedoc/ley_2213_2022.html",
     },
+    # === CONSUMIDOR ===
+    {
+        "tipo": "ley",
+        "numero": "1480",
+        "año": 2011,
+        "titulo": "Ley 1480 - Estatuto del Consumidor",
+        "rama": "consumidor",
+        "path": "/senado/basedoc/ley_1480_2011.html",
+    },
+    # Decreto 735/2013 no está en secretariasenado.gov.co (404)
+    # === SERVICIOS PÚBLICOS ===
+    {
+        "tipo": "ley",
+        "numero": "142",
+        "año": 1994,
+        "titulo": "Ley 142 - Régimen de Servicios Públicos Domiciliarios",
+        "rama": "administrativo",
+        "path": "/senado/basedoc/ley_0142_1994.html",
+    },
+    {
+        "tipo": "ley",
+        "numero": "143",
+        "año": 1994,
+        "titulo": "Ley 143 - Régimen del Servicio Público de Electricidad",
+        "rama": "administrativo",
+        "path": "/senado/basedoc/ley_0143_1994.html",
+    },
+    # === SALUD ===
+    {
+        "tipo": "ley",
+        "numero": "100",
+        "año": 1993,
+        "titulo": "Ley 100 - Sistema de Seguridad Social Integral",
+        "rama": "salud",
+        "path": "/senado/basedoc/ley_0100_1993.html",
+    },
+    {
+        "tipo": "ley",
+        "numero": "1751",
+        "año": 2015,
+        "titulo": "Ley 1751 - Ley Estatutaria de Salud",
+        "rama": "salud",
+        "path": "/senado/basedoc/ley_1751_2015.html",
+    },
+    # Decreto 780/2016 no está en secretariasenado.gov.co (404)
+    # === INSOLVENCIA Y COMERCIAL ===
+    {
+        "tipo": "ley",
+        "numero": "1116",
+        "año": 2006,
+        "titulo": "Ley 1116 - Régimen de Insolvencia Empresarial",
+        "rama": "comercial",
+        "path": "/senado/basedoc/ley_1116_2006.html",
+    },
+    {
+        "tipo": "ley",
+        "numero": "222",
+        "año": 1995,
+        "titulo": "Ley 222 - Reforma al Código de Comercio y Régimen de Sociedades",
+        "rama": "comercial",
+        "path": "/senado/basedoc/ley_0222_1995.html",
+    },
+    {
+        "tipo": "codigo",
+        "numero": "comercio-410",
+        "año": 1971,
+        "titulo": "Código de Comercio - Decreto 410 de 1971",
+        "rama": "comercial",
+        "path": "/senado/basedoc/codigo_comercio.html",
+    },
+    # === PROCEDIMIENTO PENAL (SISTEMA ANTERIOR) ===
+    {
+        "tipo": "ley",
+        "numero": "600",
+        "año": 2000,
+        "titulo": "Ley 600 - Código de Procedimiento Penal (sistema inquisitivo)",
+        "rama": "penal",
+        "path": "/senado/basedoc/ley_0600_2000.html",
+    },
 ]
 
 
