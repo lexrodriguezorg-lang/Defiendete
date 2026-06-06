@@ -1,241 +1,343 @@
+/**
+ * Landing.jsx — Página principal de Defiéndete.
+ *
+ * Incluye:
+ *   · Intro cinemática (línea teal → logo → wipe-up → reveal nav-logo)
+ *   · Hero con artifact card
+ *   · Sección 02 "El método"
+ *   · Sección Lawyers (fondo verde oscuro)
+ *   · Cierre con textarea → /caso
+ *   · Footer
+ */
+
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import logoSrc from '../assets/logo.png'
 import './Landing.css'
 
-/* ── Áreas legales ── */
-const AREAS = [
-  'Salud y EPS',
-  'Trabajo y despidos',
-  'Familia y custodia',
-  'Vivienda y arriendo',
-  'Consumo y garantías',
-  'Deudas y servicios',
-]
+/* ── Reveal al hacer scroll ── */
+const useReveal = () => {
+  useEffect(() => {
+    const els = document.querySelectorAll('.rv')
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) }
+      }),
+      { threshold: 0.08 }
+    )
+    els.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+}
 
-/* ── Componente de caja de entrada reutilizable ── */
-const EntradaBox = ({ id, label }) => {
+/* ── Caja del chat (cierre) ── */
+const ChatBox = () => {
   const [text, setText] = useState('')
   const navigate = useNavigate()
 
-  const handleSubmit = () => {
+  const handleSend = () => {
     const t = text.trim()
     if (!t) return
     navigate('/caso', { state: { initialText: t } })
   }
 
   return (
-    <div className="entrada-box">
-      <textarea
-        id={id}
-        className="entrada-textarea"
-        placeholder="Escribe aquí lo que estás viviendo..."
-        value={text}
-        onChange={e => setText(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit() }
-        }}
-        rows={4}
-        aria-label={label}
-      />
-      <button
-        className={`btn-cta entrada-btn ${!text.trim() ? 'btn-cta--disabled' : ''}`}
-        onClick={handleSubmit}
-        disabled={!text.trim()}
-      >
-        Continuar
-      </button>
-      <p className="entrada-hint">El diagnóstico es gratuito. Tu información, protegida.</p>
+    <div className="cierre-chat rv d1">
+      <div className="cp">
+        <div className="cp-glow" />
+        <div className="cp-card">
+          <textarea
+            placeholder="Escribe aquí lo que estás viviendo..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+            }}
+          />
+          <div className="cp-bottom">
+            <div className="cp-trust">
+              <span className="row">
+                <span className="cp-ping"><i /><b /></span>
+                En línea
+              </span>
+            </div>
+            <button className="cp-send" aria-label="Enviar" onClick={handleSend}>
+              <svg viewBox="0 0 20 20" strokeWidth="2" fill="none" stroke="currentColor">
+                <path d="M4 10h12M11 5l5 5-5 5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 /* ── Componente principal ── */
 const Landing = () => {
+  useReveal()
 
-  /* Animación de scroll con IntersectionObserver */
+  /* Estado de la intro */
+  const [ilineW,    setIlineW]    = useState('0')
+  const [ilineOp,   setIlineOp]   = useState(1)
+  const [ilogoVis,  setIlogoVis]  = useState(false)
+  const [mainVis,   setMainVis]   = useState(false)
+  const [introDone, setIntroDone] = useState(false)
+  const [introGone, setIntroGone] = useState(false)
+
   useEffect(() => {
-    const els = document.querySelectorAll('[data-animate]')
-    const obs = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in-view') }),
-      { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
-    )
-    els.forEach(el => obs.observe(el))
-    return () => obs.disconnect()
+    const ts = [
+      setTimeout(() => setIlineW('100%'),   200),
+      setTimeout(() => setIlogoVis(true),   650),
+      setTimeout(() => setIlineOp(0),      1100),
+      setTimeout(() => setMainVis(true),   1400),
+      setTimeout(() => setIntroDone(true), 1500),
+      setTimeout(() => setIntroGone(true), 2200),
+    ]
+    return () => ts.forEach(clearTimeout)
   }, [])
 
   return (
-    <main className="landing">
-
-      {/* ─────────────────────────────────────────
-          SECCIÓN 1 — HERO
-      ───────────────────────────────────────── */}
-      <section className="hero-sec">
-        <div className="container hero-sec__inner">
-
-          <h1 className="hero-sec__title">
-            En Colombia, tener la razón no basta.<br />
-            <em>Hay que saber defenderla.</em>
-          </h1>
-
-          <p className="hero-sec__sub">
-            Cuéntame qué te pasó. Sin tecnicismos, sin miedo.
-            Voy a leer tu caso, entender tu situación y decirte
-            exactamente qué puedes hacer.
-          </p>
-
-          <EntradaBox id="hero-input" label="Describe tu situación legal" />
-
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────
-          SECCIÓN 2 — QUÉ HACE
-      ───────────────────────────────────────── */}
-      <section className="que-hace-sec">
-        <div className="container container--text" data-animate>
-
-          <h2 className="que-hace-sec__title">
-            No reemplazamos a tu abogado.<br />
-            <em>Te damos en minutos lo que tomaría semanas.</em>
-          </h2>
-
-          <p className="que-hace-sec__body">
-            Defiéndete estudia tu caso contra las leyes y sentencias de Colombia,
-            construye tu estrategia y redacta los documentos listos para radicar.
-            Cada artículo que citamos, lo verificamos. Nada inventado.
-            Nada que no resista ante un juez.
-          </p>
-
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────
-          SECCIÓN 3 — LAS MATERIAS
-      ───────────────────────────────────────── */}
-      <section className="materias-sec">
-        <div className="container" data-animate>
-
-          <h2 className="materias-sec__title">Tu caso tiene un lugar aquí.</h2>
-
-          <div className="materias-grid">
-            {AREAS.map(area => (
-              <Link key={area} to="/caso" className="materia-link">
-                <span className="materia-link__label">{area}</span>
-                <span className="materia-link__arrow">→</span>
-              </Link>
-            ))}
+    <>
+      {/* ── Intro overlay ── */}
+      {!introGone && (
+        <div className={`s-intro${introDone ? ' out' : ''}`}>
+          <div
+            className="iline"
+            style={{
+              width:      ilineW,
+              opacity:    ilineOp,
+              transition: ilineW === '100%'
+                ? 'width .42s cubic-bezier(.22,1,.36,1)'
+                : 'opacity .3s',
+            }}
+          />
+          <div
+            className="ilogo"
+            style={{
+              opacity:    ilogoVis ? 1 : 0,
+              transform:  ilogoVis ? 'scale(1)' : 'scale(1.18)',
+              transition: 'opacity .5s ease, transform .5s cubic-bezier(.22,1,.36,1)',
+            }}
+          >
+            <img src={logoSrc} alt="Defiéndete" />
           </div>
-
-          <p className="materias-sec__cierre">
-            Y todo lo demás. Si tienes un problema, empieza por contárnoslo.
-          </p>
-
         </div>
-      </section>
+      )}
 
-      {/* ─────────────────────────────────────────
-          SECCIÓN 4 — CÓMO FUNCIONA
-      ───────────────────────────────────────── */}
-      <section className="como-sec">
-        <div className="container container--text" data-animate>
+      {/* ── Contenido principal ── */}
+      <div className={`landing-main${mainVis ? ' revealed' : ''}`}>
 
-          <span className="como-sec__label">El proceso</span>
-          <h2 className="como-sec__title">Tres pasos. Ninguna complicación.</h2>
+        {/* ─── HERO ─── */}
+        <section className="hero">
+          <div className="w">
+            <div className="hero-grid">
 
-          <div className="como-prose">
-            <p>
-              Primero, nos cuentas qué pasó con tus palabras.
-            </p>
-            <p>
-              Después, en segundos, sabes en qué terreno legal estás parado,
-              qué derechos te amparan y qué tan urgente es actuar.
-            </p>
-            <p>
-              Por último, si decides avanzar, recibes tu estrategia completa
-              y tus documentos listos para presentar.
-            </p>
+              {/* LEFT — copy */}
+              <div>
+                <div className="hero-meta">
+                  <span className="ac">(01)</span>
+                  <span>Información legal estructurada</span>
+                </div>
+
+                <h1>
+                  En Colombia, tener<br />la razón no basta.
+                  <span className="it">Hay que saber defenderla.</span>
+                </h1>
+
+                <p className="hero-sub">
+                  Sin tecnicismos, sin miedo. Voy a leer tu caso, entender tu situación
+                  y decirte exactamente qué puedes hacer y cómo.
+                </p>
+
+                <div className="hero-ctas">
+                  <Link className="cta-primary" to="/caso">
+                    Iniciar diagnóstico gratuito →
+                  </Link>
+                  <Link className="cta-secondary" to="/abogados">
+                    ¿Eres abogado? Conoce el modelo <span className="arr">→</span>
+                  </Link>
+                </div>
+
+                <div className="trust">
+                  <span className="live">
+                    <span className="pdot" />
+                    Sistema activo
+                  </span>
+                  <span className="sep">·</span>
+                  <span>Diagnóstico gratuito</span>
+                  <span className="sep">·</span>
+                  <span>Derecho colombiano verificado</span>
+                </div>
+              </div>
+
+              {/* RIGHT — artifact */}
+              <div className="artifact">
+                <div className="artifact-glow" />
+                <div className="art-card">
+                  <div className="art-header">
+                    <span className="art-title">Reporte de análisis</span>
+                    <span className="art-badge">Verificado</span>
+                  </div>
+                  <div className="art-case">
+                    <div className="label">Caso analizado</div>
+                    <p>"Me despidieron sin justa causa y no me pagaron la liquidación completa."</p>
+                  </div>
+                  <div className="art-refs">
+                    <div className="art-ref">
+                      <span className="rname">Art. 64 CST — Terminación unilateral</span>
+                      <span className="rscore">0.97</span>
+                      <span className="rok">✓</span>
+                    </div>
+                    <div className="art-ref">
+                      <span className="rname">Sentencia T-478/2023 — Corte Const.</span>
+                      <span className="rscore">0.91</span>
+                      <span className="rok">✓</span>
+                    </div>
+                    <div className="art-ref">
+                      <span className="rname">Ley 361/1997 — Estabilidad reforzada</span>
+                      <span className="rscore">0.89</span>
+                      <span className="rok">✓</span>
+                    </div>
+                  </div>
+                  <div className="art-footer">
+                    <span className="fl">3/3 referencias verificadas</span>
+                    <span className="fr">Estrategia lista →</span>
+                  </div>
+                </div>
+                <div className="art-mini">
+                  <div className="label">Probabilidad de éxito</div>
+                  <div className="val">Alta</div>
+                  <div className="sub">Caso sólido · Actúa pronto</div>
+                </div>
+              </div>
+
+            </div>
           </div>
+        </section>
 
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────
-          SECCIÓN 5 — LA GARANTÍA
-      ───────────────────────────────────────── */}
-      <section className="garantia-sec">
-        <div className="container container--text" data-animate>
-
-          <h2 className="garantia-sec__title">Lo que firmamos, lo respaldamos.</h2>
-
-          <div className="garantia-prose">
-            <p>
-              Los sistemas de inteligencia artificial a veces inventan leyes que no existen.
-              El nuestro no.
-            </p>
-            <p>
-              Cada referencia legal de tu documento se verifica contra el cuerpo real
-              de la ley colombiana antes de llegar a tus manos. Si algo no resiste, se rehace.
-              Lo que recibes, lo puedes defender.
-            </p>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────
-          SECCIÓN 6 — PARA ABOGADOS
-      ───────────────────────────────────────── */}
-      <section className="abogados-sec">
-        <div className="container abogados-sec__inner" data-animate>
-
-          <div className="abogados-sec__text">
-            <h2 className="abogados-sec__title">
-              ¿Eres abogado?<br />
-              <em>Multiplica tu capacidad, no tu jornada.</em>
+        {/* ─── SECCIÓN 02 ─── */}
+        <section className="s02">
+          <div className="w">
+            <div className="s-meta rv"><span className="ac">(02)</span><span>El método</span></div>
+            <h2 className="rv d1">
+              No hay una respuesta automática esperándote.{' '}
+              <span className="it">Hay un análisis de tu caso.</span>
             </h2>
-            <p className="abogados-sec__body">
-              Recibe casos con el expediente ya armado y la estrategia documentada.
-              Genera escritos en minutos. Dedica tu tiempo a lo que solo tú puedes hacer.
+            <p className="s02-desc rv d2">
+              Cuando describes lo que pasó, el sistema cruza tu situación contra el cuerpo real
+              del derecho colombiano — leyes, decretos y sentencias de la Corte Constitucional —
+              y construye una estrategia verificada, ajustada a los hechos exactos de tu caso.
             </p>
-            <Link to="/abogados" className="btn-outline">
-              Conoce el modelo
+            <div className="pquote rv d2">
+              <p>
+                "Tener la razón y no saber defenderla es,{' '}
+                <span className="it">exactamente,</span> lo mismo que no tenerla."
+              </p>
+            </div>
+            <div className="techpoints rv d3">
+              <div className="tp">
+                <span className="tpn">01</span>
+                <div className="tp-body">
+                  <h3>Corpus legal verificado</h3>
+                  <p>
+                    <span className="hi">1.683+ normas indexadas</span> del derecho colombiano.
+                    Cada referencia que citamos es cruzada con su fuente antes de llegar a tus
+                    manos. Nada inventado. Nada que no resista ante un juez.
+                  </p>
+                </div>
+              </div>
+              <div className="tp">
+                <span className="tpn">02</span>
+                <div className="tp-body">
+                  <h3>Análisis de posición</h3>
+                  <p>
+                    El sistema mide la{' '}
+                    <span className="hi">fortaleza real de tu caso</span>: qué artículos te
+                    protegen, qué tan urgente es actuar y cuál es tu probabilidad de éxito —
+                    antes de pedirte un peso.
+                  </p>
+                </div>
+              </div>
+              <div className="tp">
+                <span className="tpn">03</span>
+                <div className="tp-body">
+                  <h3>Estrategia accionable</h3>
+                  <p>
+                    No un diagnóstico genérico.{' '}
+                    <span className="hi">El artículo exacto, el documento listo para radicar</span>{' '}
+                    y el paso a paso del cómo. Lo que recibes, lo puedes llevar a un juzgado.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <Link className="cta-big rv d4" to="/de-que-se-trata">
+              Conoce en detalle cómo funciona <span className="arr">→</span>
             </Link>
           </div>
+        </section>
 
-        </div>
-      </section>
+        {/* ─── ABOGADOS ─── */}
+        <section className="lawyers">
+          <div className="w l-in">
+            <div className="l-tag rv">Para abogados</div>
+            <h2 className="l-head rv d1">
+              Multiplica tu capacidad, <span className="it">no tu jornada.</span>
+            </h2>
+            <p className="l-intro rv d1">
+              Un caso que llega por Defiéndete ya llega entendido. El cliente conoce su posición,
+              las referencias están verificadas y los documentos están listos. Tú entras donde tu
+              criterio es irreemplazable.
+            </p>
+            <div className="l-cards rv d2">
+              <div className="lcard">
+                <h3>Casos pre-analizados</h3>
+                <p>Cada caso llega con diagnóstico, expediente estructurado y referencias verificadas. Sin investigación preliminar de tu parte.</p>
+              </div>
+              <div className="lcard">
+                <h3>Tu expertise donde importa</h3>
+                <p>Tú entras en la estrategia y en la defensa — no en la investigación de fondo. Menos tiempo de preparación, más tiempo para ganar.</p>
+              </div>
+            </div>
+            <div className="lchecks rv d3">
+              <div className="lcheck"><span className="ck">—</span><p><span className="hi">Expediente completo</span> con análisis de posición y referencias legales verificadas listas antes de que abras el caso.</p></div>
+              <div className="lcheck"><span className="ck">—</span><p>El cliente llega sabiendo <span className="hi">exactamente qué tiene</span> — y sabiendo por qué te necesita.</p></div>
+              <div className="lcheck"><span className="ck">—</span><p><span className="hi">Documentos base redactados</span> y listos para radicar o para que los tomes como punto de partida.</p></div>
+              <div className="lcheck"><span className="ck">—</span><p>Menos trabajo de fondo. <span className="hi">Más tiempo para la estrategia que gana.</span></p></div>
+            </div>
+            <Link className="cta-big teal rv d4" to="/abogados">
+              Conoce el modelo para abogados <span className="arr">→</span>
+            </Link>
+          </div>
+        </section>
 
-      {/* ─────────────────────────────────────────
-          SECCIÓN 7 — CIERRE
-      ───────────────────────────────────────── */}
-      <section className="cierre-sec">
-        <div className="container container--text" data-animate>
+        {/* ─── CIERRE ─── */}
+        <section className="cierre">
+          <div className="w">
+            <h2 className="cierre-title rv">
+              Miles no hacen nada porque no saben qué hacer.{' '}
+              <span className="it">Tú ya no eres uno.</span>
+            </h2>
+            <ChatBox />
+          </div>
+        </section>
 
-          <h2 className="cierre-sec__title">
-            Miles de colombianos no hacen nada porque no saben qué hacer.
-            <em> Tú ya no eres uno.</em>
-          </h2>
+        {/* ─── FOOTER ─── */}
+        <footer className="site-footer">
+          <div className="w">
+            <div className="foot">
+              <img src={logoSrc} alt="Defiéndete" />
+              <p className="foot-disc">
+                Información legal estructurada con respaldo en la ley colombiana.
+                Para representación formal ante estrados, te conectamos con un abogado aliado.
+              </p>
+              <div className="foot-copy">© 2026 · Hecho en Colombia</div>
+            </div>
+          </div>
+        </footer>
 
-          <EntradaBox id="cierre-input" label="Cuéntanos tu caso para empezar" />
-
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────
-          FOOTER
-      ───────────────────────────────────────── */}
-      <footer className="footer">
-        <div className="container footer__inner">
-          <p className="footer__brand">DEFIÉNDETE</p>
-          <p className="footer__disclaimer">
-            Información legal estructurada con respaldo en la ley colombiana.
-            Para representación formal ante estrados, te conectamos con un abogado aliado.
-          </p>
-          <p className="footer__copy">© 2026 · Hecho en Colombia</p>
-        </div>
-      </footer>
-
-    </main>
+      </div>
+    </>
   )
 }
 

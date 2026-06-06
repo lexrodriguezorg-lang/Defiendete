@@ -806,6 +806,22 @@
   color: var(--text-secondary);
 }
 
+/* Probabilidad de éxito en meta */
+.meta-value--prob {
+  color: var(--success);
+}
+
+/* Razón de probabilidad debajo del resumen */
+.result-prob-razon {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: var(--leading-normal);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-2);
+}
+
 /* CTA de resultado */
 .result-cta {
   background: var(--bg-elevated);
@@ -819,7 +835,38 @@
 }
 .result-cta__info { display: flex; flex-direction: column; gap: var(--space-3); }
 .result-cta__info h3 { font-family: var(--font-body); font-size: var(--text-xl); font-weight: 700; }
-.result-cta__info p { color: var(--text-secondary); font-size: var(--text-base); }
+
+/* Texto del cierre paywall */
+.result-cta__cierre {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+/* Lista de lo que incluye la estrategia paga */
+.estrategia-incluye-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.estrategia-incluye-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.estrategia-incluye-item svg {
+  color: var(--success);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 .result-cta__price { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
 .price-from { font-size: var(--text-sm); color: var(--text-muted); }
 .price-amount { font-family: var(--font-display); font-size: var(--text-3xl); color: var(--cyan); }

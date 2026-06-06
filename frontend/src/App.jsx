@@ -3,10 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext'
 import PrivateRoute from './components/auth/PrivateRoute'
 import GuestRoute from './components/auth/GuestRoute'
+import SiteLayout from './components/SiteLayout'
 import Navbar from './components/layout/Navbar'
 import Landing from './pages/Landing'
 import Caso from './pages/Caso'
 import Abogados from './pages/Abogados'
+import DeQueSeTrata from './pages/DeQueSeTrata'
+import Precios from './pages/Precios'
 import DashboardUsuario from './pages/DashboardUsuario'
 import DashboardAbogado from './pages/DashboardAbogado'
 import Login from './pages/Login'
@@ -35,20 +38,34 @@ const App = () => {
         <ScrollToTop />
         <Routes>
 
-          {/* ── Rutas públicas ── */}
-          <Route path="/" element={<><Navbar /><Landing /></>} />
-          <Route path="/caso"     element={<Caso />} />
-          <Route path="/abogados" element={<><Navbar /><Abogados /></>} />
-          <Route path="/dashboard" element={<DashboardRedirect />} />
+          {/* ── Páginas públicas con SiteLayout (nav propio, dark theme) ── */}
+          <Route path="/"
+            element={<SiteLayout><Landing /></SiteLayout>}
+          />
+          <Route path="/de-que-se-trata"
+            element={<SiteLayout noIntro><DeQueSeTrata /></SiteLayout>}
+          />
+          <Route path="/precios"
+            element={<SiteLayout noIntro><Precios /></SiteLayout>}
+          />
+          <Route path="/abogados"
+            element={<SiteLayout noIntro><Abogados /></SiteLayout>}
+          />
+
+          {/* ── Funnel — usa su propio layout ── */}
+          <Route path="/caso" element={<Caso />} />
+
+          {/* ── Auth ── */}
           <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/registro" element={<GuestRoute><Registro /></GuestRoute>} />
 
-          {/* ── Rutas protegidas — redirigen a /login si no hay sesión ── */}
+          {/* ── Dashboard ── */}
+          <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route
             path="/dashboard/usuario"
             element={
               <PrivateRoute role="ciudadano">
-                <DashboardUsuario />
+                <><Navbar /><DashboardUsuario /></>
               </PrivateRoute>
             }
           />
@@ -56,7 +73,7 @@ const App = () => {
             path="/dashboard/abogado"
             element={
               <PrivateRoute role="abogado">
-                <DashboardAbogado />
+                <><Navbar /><DashboardAbogado /></>
               </PrivateRoute>
             }
           />

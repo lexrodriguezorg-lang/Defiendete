@@ -188,6 +188,23 @@ class ConversarResponse(BaseModel):
     urgencia: Optional[str] = None
     diagnosis_formatted: Optional[str] = None
     payment_required_for: Optional[list[str]] = None
+    estrategia_incluye: Optional[list[str]] = None   # lista de lo que incluye la estrategia paga
+
+
+class RegisterLeadRequest(BaseModel):
+    """Solicitud de registro de lead con verificación anti-abuso."""
+    nombre: str = Field(..., min_length=1, max_length=200)
+    contacto: str = Field(
+        ..., min_length=5, max_length=200,
+        description="Número de WhatsApp o correo electrónico",
+    )
+
+
+class RegisterLeadResponse(BaseModel):
+    """Resultado del registro: allowed=True si puede ver el diagnóstico."""
+    allowed: bool
+    message: Optional[str] = None
+    dias_restantes: Optional[int] = None
 
 
 # === Rate limiting (Redis) ===
@@ -223,7 +240,80 @@ async def _check_rate_limit(request: Request) -> tuple[bool, str]:
         return True, ""
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _normalize_contacto(contacto: str) -> str:
+    """
+    Normaliza un número de celular o correo para usarlo como key de rate-limit.
+
+    Teléfonos: extrae solo dígitos, quita prefijo +57 / 57, toma los últimos 10.
+    Correos:   lowercase tal cual.
+    """
+    c = contacto.strip().lower()
+    digits = "".join(ch for ch in c if ch.isdigit())
+    if len(digits) >= 7:
+        # Quitar código de país Colombia (+57) si está
+        if digits.startswith("57") and len(digits) == 12:
+            digits = digits[2:]
+        return digits[-10:]
+    # Parece correo — usar normalizado
+    return c
+
+
 # === Endpoints ===
+
+@router.post("/register-lead", response_model=RegisterLeadResponse)
+async def register_lead(request: RegisterLeadRequest):
+    """
+    Registra el lead y verifica el límite anti-abuso por número/correo.
+
+    - 1 diagnóstico gratis por número de celular (o correo) cada 7 días.
+    - Key Redis: lead_limit:{contacto_normalizado}  TTL: 604800 s (7 días).
+    - Si Redis no está disponible, falla silenciosamente y permite continuar.
+    - Loguea diagnósticos_gratis_por_contacto para métricas de uso.
+    """
+    contacto_norm = _normalize_contacto(request.contacto)
+    TTL_7_DAYS = 7 * 24 * 3600  # 604 800 s
+
+    try:
+        import redis.asyncio as aioredis
+        settings = get_settings()
+        key = f"lead_limit:{contacto_norm}"
+
+        async with aioredis.from_url(settings.redis_url, decode_responses=True) as r:
+            # SET NX — solo setea si la clave no existe (atómico)
+            set_ok = await r.set(key, request.nombre, ex=TTL_7_DAYS, nx=True)
+
+            if set_ok:
+                logger.info(
+                    "lead_registered",
+                    contacto_hash=hash(contacto_norm) % 100_000,  # no loguear datos reales
+                    nombre_len=len(request.nombre),
+                )
+                return RegisterLeadResponse(allowed=True)
+
+            ttl = await r.ttl(key)
+            dias_restantes = max(1, (ttl + 86399) // 86400)  # ceiling division
+            logger.info(
+                "lead_rate_limited",
+                dias_restantes=dias_restantes,
+                contacto_hash=hash(contacto_norm) % 100_000,
+            )
+            return RegisterLeadResponse(
+                allowed=False,
+                message=(
+                    f"Ya analizamos un caso tuyo esta semana. "
+                    f"Para preparar la estrategia de ese caso, continúa desde donde lo dejaste. "
+                    f"Para un caso nuevo podrás volver en {dias_restantes} día(s)."
+                ),
+                dias_restantes=dias_restantes,
+            )
+
+    except Exception as e:
+        # Redis no disponible — no bloquear (falla silenciosa)
+        logger.warning("lead_redis_error", error=str(e))
+        return RegisterLeadResponse(allowed=True)
+
 
 @router.post("/diagnose", response_model=DiagnosisResponse)
 async def diagnose_case(request: DiagnosisRequest):
@@ -396,6 +486,7 @@ async def conversar(http_request: Request, payload: ConversarRequest):
             urgencia=clasificacion.get("urgencia", ""),
             diagnosis_formatted=formatted,
             payment_required_for=triage.get("requiere_pago_para", []),
+            estrategia_incluye=triage.get("estrategia_incluye"),
         )
 
     except Exception as e:
