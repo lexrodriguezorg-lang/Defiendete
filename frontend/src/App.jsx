@@ -43,13 +43,13 @@ const App = () => {
             element={<SiteLayout><Landing /></SiteLayout>}
           />
           <Route path="/de-que-se-trata"
-            element={<SiteLayout noIntro><DeQueSeTrata /></SiteLayout>}
+            element={<SiteLayout noIntro innerWidth><DeQueSeTrata /></SiteLayout>}
           />
           <Route path="/precios"
-            element={<SiteLayout noIntro><Precios /></SiteLayout>}
+            element={<SiteLayout noIntro innerWidth><Precios /></SiteLayout>}
           />
           <Route path="/abogados"
-            element={<SiteLayout noIntro><Abogados /></SiteLayout>}
+            element={<SiteLayout noIntro innerWidth><Abogados /></SiteLayout>}
           />
 
           {/* ── Funnel — usa su propio layout ── */}

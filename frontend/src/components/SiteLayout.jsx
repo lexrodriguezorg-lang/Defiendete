@@ -1,54 +1,38 @@
 /**
- * SiteLayout — envoltorio de todas las páginas públicas.
- *
- * Provee:
- *   · ParticleField (canvas constelación)
- *   · bg-grid y bg-aura
- *   · Grain overlay
- *   · Nav (con scroll-sticky) + Burger
- *   · Menu overlay (fullscreen)
- *   · Login modal (rutas /login?role=user y /login?role=lawyer)
- *
- * Uso:
- *   <SiteLayout>  ← en App.jsx alrededor de cada ruta pública
- *     <MiPagina />
- *   </SiteLayout>
+ * SiteLayout v2 — Nav, menú overlay, login modal, fondo y partículas.
  *
  * Props:
- *   noIntro (bool, default false) — si es true, la nav-logo
- *     aparece de inmediato (páginas distintas a Landing).
+ *   noIntro (bool)   — el nav-logo aparece de inmediato (páginas internas)
+ *   innerWidth (bool) — usa max-width:1100px en lugar de 1240px
  */
-
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import ParticleField from './ParticleField'
 import logoSrc from '../assets/logo.png'
 import '../styles/site.css'
 
-const SiteLayout = ({ children, noIntro = false }) => {
+const SiteLayout = ({ children, noIntro = false, innerWidth = false }) => {
   const [navStuck,  setNavStuck]  = useState(false)
   const [menuOpen,  setMenuOpen]  = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
   const location = useLocation()
 
-  /* Cerrar menú en cambio de ruta */
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
-  /* Scroll → nav sticky */
   useEffect(() => {
-    const handler = () => setNavStuck(window.scrollY > 24)
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
+    const h = () => setNavStuck(window.scrollY > 20)
+    window.addEventListener('scroll', h, { passive: true })
+    return () => window.removeEventListener('scroll', h)
   }, [])
 
-  /* Escape → cerrar modal */
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') setLoginOpen(false) }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    const h = (e) => {
+      if (e.key === 'Escape') { setLoginOpen(false); setMenuOpen(false) }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
   }, [])
 
-  /* Bloquear scroll del body cuando el menú está abierto */
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
@@ -61,12 +45,16 @@ const SiteLayout = ({ children, noIntro = false }) => {
     { to: '/abogados',        idx: '04', label: 'Para abogados'   },
   ]
 
+  const rootClass = [
+    'site-root',
+    noIntro    ? 'no-intro'    : '',
+    innerWidth ? 'inner-width' : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={`site-root${noIntro ? ' no-intro' : ''}`}>
-      {/* Fondo */}
+    <div className={rootClass}>
       <ParticleField />
-      <div className="bg-grid"   aria-hidden="true" />
-      <div className="bg-aura"   aria-hidden="true" />
+      <div className="bg-grid" aria-hidden="true" />
       <div className="site-grain" aria-hidden="true" />
 
       {/* ── Nav ── */}
@@ -75,35 +63,30 @@ const SiteLayout = ({ children, noIntro = false }) => {
           <Link className="nav-logo" to="/">
             <img src={logoSrc} alt="Defiéndete" />
           </Link>
-          <div className="nav-right">
-            <button className="nav-login" onClick={() => setLoginOpen(true)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <div className="nav-actions">
+            <button className="login-btn" onClick={() => setLoginOpen(true)}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
                 <circle cx="8" cy="5" r="2.5" />
                 <path d="M2.5 13.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
               </svg>
               <span className="txt">Iniciar sesión</span>
             </button>
-            <button className="burger" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">
-              Menú
-              <span className="bb"><i /><i /></span>
+            <button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">
+              <span className="mtxt">Menú</span>
+              <span className="bars"><i /><i /></span>
             </button>
           </div>
         </div>
       </nav>
 
-      {/* ── Menu overlay ── */}
+      {/* ── Menú overlay ── */}
       <div className={`s-menu${menuOpen ? ' open' : ''}`} role="dialog" aria-modal="true">
-        <button className="mx" onClick={() => setMenuOpen(false)}>
-          Cerrar <span>×</span>
+        <button className="menu-x" onClick={() => setMenuOpen(false)}>
+          Cerrar <b>×</b>
         </button>
         <div className="ml">
           {navItems.map(({ to, idx, label }) => (
-            <Link
-              key={to}
-              className="mi"
-              to={to}
-              onClick={() => setMenuOpen(false)}
-            >
+            <Link key={to} className="mi" to={to} onClick={() => setMenuOpen(false)}>
               <span className="ix">{idx}</span>
               <span className="nm">{label}</span>
             </Link>
@@ -126,29 +109,37 @@ const SiteLayout = ({ children, noIntro = false }) => {
         aria-label="Iniciar sesión"
       >
         <div className="lmodal-bg" onClick={() => setLoginOpen(false)} />
-        <div className="lmodal-box">
-          <button className="lm-close" onClick={() => setLoginOpen(false)} aria-label="Cerrar">×</button>
-          <h2 className="lm-title">Bienvenido de nuevo.</h2>
-          <p className="lm-sub">Elige cómo ingresar a tu cuenta.</p>
-          <div className="lm-opts">
-            <a className="lm-opt" href="/login?role=user">
-              <div className="opt-icon">⚖️</div>
+        <div className="lbox">
+          <button className="x" onClick={() => setLoginOpen(false)} aria-label="Cerrar">×</button>
+          <h2>Bienvenido de nuevo.</h2>
+          <p className="sub">Elige cómo ingresar a tu cuenta.</p>
+          <div className="lopts">
+            <a className="lopt" href="/login?role=user">
+              <span className="ico">
+                <svg viewBox="0 0 20 20" strokeWidth="1.4">
+                  <circle cx="10" cy="6.5" r="3" />
+                  <path d="M3.5 17c0-3.6 3-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+                </svg>
+              </span>
               <h3>Soy usuario</h3>
-              <p>Accedo a mis casos y diagnósticos</p>
+              <p>Mis casos y diagnósticos</p>
             </a>
-            <a className="lm-opt" href="/login?role=lawyer">
-              <div className="opt-icon">👔</div>
+            <a className="lopt" href="/login?role=lawyer">
+              <span className="ico">
+                <svg viewBox="0 0 20 20" strokeWidth="1.4">
+                  <path d="M10 2v16M4 7h12M5.5 7l-2.5 5h5zM14.5 7l-2.5 5h5z" />
+                </svg>
+              </span>
               <h3>Soy abogado</h3>
-              <p>Accedo al CRM y mis casos asignados</p>
+              <p>CRM y casos asignados</p>
             </a>
           </div>
-          <p className="lm-foot">
+          <p className="lfoot">
             ¿No tienes cuenta? <a href="/registro">Regístrate gratis</a>
           </p>
         </div>
       </div>
 
-      {/* ── Contenido de la página ── */}
       {children}
     </div>
   )

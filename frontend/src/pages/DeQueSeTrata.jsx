@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import logoSrc from '../assets/logo.png'
 import './InnerPage.css'
@@ -7,167 +7,224 @@ const useReveal = () => {
   useEffect(() => {
     const els = document.querySelectorAll('.rv')
     const io = new IntersectionObserver(
-      (entries) => entries.forEach((e) => {
-        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) }
-      }),
-      { threshold: 0.08 }
+      (e) => e.forEach((x) => { if (x.isIntersecting) { x.target.classList.add('in'); io.unobserve(x.target) } }),
+      { threshold: 0.12 }
     )
     els.forEach((el) => io.observe(el))
     return () => io.disconnect()
   }, [])
 }
 
+/* ── Animación de contador ── */
+const CountUp = ({ target, duration = 1200 }) => {
+  const [val, setVal] = useState(0)
+  const ref = useRef(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true
+        const start = performance.now()
+        const tick = (now) => {
+          const t = Math.min((now - start) / duration, 1)
+          setVal(Math.floor(t * target))
+          if (t < 1) requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      }
+    }, { threshold: 0.5 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [target, duration])
+
+  return <span ref={ref}>{val.toLocaleString('es-CO')}</span>
+}
+
+/* ── Animación del panel de verificación ── */
+const REFS = [
+  'Art. 64 CST — Terminación unilateral',
+  'Sentencia T-478 / 2023 — Corte Const.',
+  'Ley 361 / 1997 — Estabilidad reforzada',
+  'Decreto 2351 / 1965 — Art. 6',
+]
+const VerifyPanel = () => {
+  const [rows, setRows]       = useState([])
+  const [scanning, setScanning] = useState(true)
+  const [done, setDone]       = useState(false)
+  const panelRef = useRef(null)
+  const started  = useRef(false)
+
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true
+        REFS.forEach((r, i) => {
+          setTimeout(() => {
+            setRows((prev) => [...prev, r])
+            if (i === REFS.length - 1) {
+              setTimeout(() => { setScanning(false); setDone(true) }, 600)
+            }
+          }, 700 + i * 550)
+        })
+      }
+    }, { threshold: 0.4 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  return (
+    <div className="verify" ref={panelRef}>
+      <div className="vh">
+        <span className="t">Verificación de referencias</span>
+        <span className="scan">
+          <span className="sp" style={{ animation: scanning ? undefined : 'none', opacity: scanning ? 1 : 0 }} />
+          <span>{scanning ? 'Analizando…' : '✓ Completado'}</span>
+        </span>
+      </div>
+      <div className="vb">
+        {rows.map((r) => (
+          <div key={r} className="vr">
+            <span className="rn">{r}</span>
+            <span className="rv-ok">✓ Verificada</span>
+          </div>
+        ))}
+      </div>
+      <div className="vf">
+        <span className="fl">{rows.length} / {REFS.length} verificadas</span>
+        {done && <span className="fr"><span className="ck">✓</span> Listo para radicar</span>}
+      </div>
+    </div>
+  )
+}
+
 const DeQueSeTrata = () => {
   useReveal()
+  const tc1 = useRef(null)
+  const tc2 = useRef(null)
+
+  useEffect(() => {
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        tc1.current?.classList.add('in')
+        setTimeout(() => tc2.current?.classList.add('in'), 500)
+        io.disconnect()
+      }
+    }, { threshold: 0.3 })
+    if (tc1.current) io.observe(tc1.current)
+    return () => io.disconnect()
+  }, [])
 
   return (
     <div className="inner-page">
 
-      {/* ─── HERO ─── */}
-      <section className="page-hero">
-        <div className="w">
-          <div className="kicker rv">De qué se trata</div>
-          <h1 className="rv d1">De qué se trata <em>Defiéndete.</em></h1>
-          <p className="intro rv d1">
-            No es un chatbot. No es un buscador de leyes. Es un sistema construido para entender
-            el derecho colombiano caso por caso — y darte una posición clara, honesta y accionable
-            sobre lo que te está pasando.
+      <section className="phero">
+        <div className="glow" aria-hidden="true" />
+        <div className="w phero-in">
+          <div className="kick">De qué se trata</div>
+          <h1>No es un chatbot.<br /><em>Es un análisis real de tu caso.</em></h1>
+          <p className="intro">
+            Cuéntanos qué pasó y un sistema construido sobre la ley colombiana te dice si tienes
+            la razón, qué te protege y cómo defenderlo — con cada referencia verificada.
           </p>
-        </div>
-      </section>
-
-      {/* ─── BLOQUE 1 ─── */}
-      <section className="bloque">
-        <div className="w">
-          <h2 className="rv">
-            La diferencia entre saber que tienes la razón<br />
-            y <em>saber cómo defenderla.</em>
-          </h2>
-          <div className="bloque-grid">
-            <div>
-              <p className="rv d1">
-                En Colombia, miles de personas enfrentan injusticias reales todos los días —
-                despidos ilegales, EPS que niegan tratamientos, arrendadores que retienen depósitos,
-                entidades que no responden — y no hacen nada. No porque no tengan la razón.
-                Porque no saben qué hacer con ella.
-              </p>
-              <p className="rv d1">
-                Defiéndete existe para eso. Para que quien tiene un caso legítimo pueda entender
-                su posición, conocer los derechos que lo amparan y saber exactamente qué pasos
-                tomar — sin necesitar ser abogado, sin llenar formularios, sin pagar para descubrir
-                si vale la pena.
-              </p>
-              <p className="rv d2">
-                El diagnóstico es gratuito. Siempre. Antes de pedirte un peso, te decimos la
-                verdad sobre tu caso: si es sólido, qué derecho te protege, qué urgencia tienes
-                y qué probabilidad real de éxito tienes. Lo honesto, aunque no convenga.
-              </p>
+          <div className="metrics">
+            <div className="metric">
+              <div className="n"><CountUp target={1683} /></div>
+              <div className="l">Normas en el corpus</div>
             </div>
-            <div className="rv d2">
-              <p style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: '1.35rem', lineHeight: 1.5, color: 'var(--fg)', marginBottom: '2rem' }}>
-                "No competimos con los abogados. Existimos para quien nunca habría contratado uno."
-              </p>
-              <p style={{ fontSize: '1.02rem', color: 'var(--mute)', lineHeight: 1.78 }}>
-                Defiéndete amplía el mercado de la justicia. Le da acceso a quien no sabía que
-                tenía con qué defenderse, y le da a los abogados casos que ya llegan entendidos
-                y estructurados. No es un sustituto. Es el primer paso que muchos nunca dan.
-              </p>
+            <div className="metric">
+              <div className="n">Minutos</div>
+              <div className="l">No semanas</div>
+            </div>
+            <div className="metric">
+              <div className="n">$0</div>
+              <div className="l">Para empezar</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── BLOQUE 2 ─── */}
-      <section className="bloque">
+      {/* ─── De tu relato a una estrategia ─── */}
+      <section className="inner-sec">
         <div className="w">
-          <h2 className="rv">
-            Construido sobre la ley colombiana.<br />
-            <em>Verificado antes de llegar a tus manos.</em>
-          </h2>
-          <div className="bloque-grid">
-            <div>
-              <p className="rv d1">
-                Cuando describes tu caso, el sistema no genera una respuesta genérica. Cruza tu
-                situación contra el corpus real del derecho colombiano — leyes, decretos,
-                jurisprudencia de la Corte Constitucional — para identificar exactamente qué norma
-                te protege y con qué fuerza.
-              </p>
-              <p className="rv d1">
-                Y antes de que ese análisis llegue a tus manos, un proceso de verificación
-                contrasta cada referencia citada contra la fuente. Si algo no resiste la
-                comprobación, no entra.{' '}
-                <span className="strong">Lo que recibes, lo puedes defender ante un juez.</span>
-              </p>
-              <p className="rv d2">
-                Aquí hay rigor donde no se espera encontrarlo. Porque la confianza no se declara:
-                se demuestra referencia por referencia.
-              </p>
+          <h2 className="rv">De tu relato <em>a una estrategia.</em></h2>
+          <p className="lead rv">Escribes lo que pasó en lenguaje normal. El sistema lo convierte en una posición legal concreta.</p>
+          <div className="transform">
+            <div className="tc before" ref={tc1}>
+              <div className="tl">Lo que escribes</div>
+              <p className="raw">"Me echaron del trabajo sin avisar y no me pagaron lo que me debían."</p>
             </div>
-            <div className="doc-card rv d2">
-              <div className="doc-bar">
-                <span className="t">Reporte de verificación</span>
-                <span className="doc-ok">Aprobado</span>
+            <div className="tar">
+              <span className="l" />análisis<span className="l" />
+            </div>
+            <div className="tc after" ref={tc2}>
+              <div className="tl">Lo que recibes</div>
+              <div className="tout">
+                <div className="oi"><span className="k">Rama</span>Derecho laboral · despido sin justa causa</div>
+                <div className="oi"><span className="k">Norma</span>Art. 64 CST + estabilidad reforzada</div>
+                <div className="oi"><span className="k">Urgencia</span>Alta · plazos corriendo</div>
+                <div className="oi"><span className="k">Éxito</span>Probabilidad alta</div>
               </div>
-              <div className="doc-row"><span className="r">Art. 64 CST — Terminación unilateral</span><span className="s">0.97</span><span className="v">✓ Verificada</span></div>
-              <div className="doc-row"><span className="r">Sentencia T-478 / 2023 — Corte Const.</span><span className="s">0.91</span><span className="v">✓ Verificada</span></div>
-              <div className="doc-row"><span className="r">Ley 361 / 1997 — Estabilidad reforzada</span><span className="s">0.89</span><span className="v">✓ Verificada</span></div>
-              <div className="doc-row"><span className="r">Decreto 2351 / 1965 — Art. 6</span><span className="s">0.93</span><span className="v">✓ Verificada</span></div>
-              <div className="doc-foot">4 de 4 referencias verificadas · listo para radicar</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── BLOQUE 3 — Materias ─── */}
-      <section className="bloque" style={{ borderBottom: 'none' }}>
+      {/* ─── Lo que firmamos lo respaldamos ─── */}
+      <section className="inner-sec">
+        <div className="w">
+          <h2 className="rv">Lo que firmamos, <em>lo respaldamos.</em></h2>
+          <p className="lead rv">
+            Los sistemas de IA a veces inventan leyes. El nuestro no: cada referencia se contrasta
+            contra la fuente real. <span className="hi">Lo que recibes, lo puedes defender ante un juez.</span>
+          </p>
+          <VerifyPanel />
+        </div>
+      </section>
+
+      {/* ─── Tu caso tiene un lugar aquí ─── */}
+      <section className="inner-sec">
         <div className="w">
           <h2 className="rv">Tu caso <em>tiene un lugar aquí.</em></h2>
-          <p className="rv d1" style={{ fontSize: '1.02rem', color: 'var(--mute)', maxWidth: '54ch', lineHeight: 1.75, marginBottom: '2.4rem' }}>
-            Defiéndete cubre las materias del derecho colombiano donde más se vulneran los derechos
-            de los ciudadanos. Si tu caso no está aquí, cuéntanoslo igual.
-          </p>
-          <div className="materias-list rv d2">
+          <p className="lead rv">Las situaciones más frecuentes de Colombia. Y si la tuya no aparece, el sistema la clasifica igual.</p>
+          <div className="materias rv">
             {[
-              ['Salud y EPS',        'Tutelas por negación de servicios, medicamentos o procedimientos médicos.'],
-              ['Trabajo y despidos', 'Despidos sin justa causa, liquidaciones incorrectas, acoso laboral.'],
-              ['Arrendamiento',      'Perturbación a la posesión, retención de depósitos, incumplimientos del arrendador.'],
-              ['Familia',            'Custodia, régimen de visitas, alimentos, protección de menores.'],
-              ['Consumidor',         'Garantías, incumplimientos de entrega, estafas en comercio electrónico.'],
-              ['Deudas y servicios', 'Cobros injustificados, errores en extractos, deudas de servicios públicos.'],
-            ].map(([title, desc]) => (
-              <div className="mat" key={title}>
-                <h3>{title}</h3>
-                <p>{desc}</p>
+              ['Salud y EPS',  'Servicios negados, tutelas, autorizaciones'],
+              ['Trabajo',      'Despidos, liquidación, acoso laboral'],
+              ['Familia',      'Custodia, alimentos, menores'],
+              ['Vivienda',     'Arriendo, lanzamiento, depósito'],
+              ['Consumo',      'Garantías, SIC, reversa de pagos'],
+              ['Deudas',       'Cobros, reportes, servicios'],
+            ].map(([t, d]) => (
+              <div className="chip" key={t}>
+                <h3>{t}</h3><p>{d}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── CTA BAND ─── */}
-      <div className="cta-band">
+      {/* ─── CTA ─── */}
+      <section className="ctab">
         <div className="w">
-          <p className="rv">"Tu caso tiene nombre legal. Empieza por conocerlo."</p>
-          <Link className="cta-primary rv d1" to="/caso" style={{ margin: '0 auto' }}>
-            Iniciar diagnóstico gratuito →
-          </Link>
+          <p className="rv">"Gratis. Sin registro. Solo la verdad sobre tu caso."</p>
+          <Link className="site-btn rv" to="/caso">Empezar mi diagnóstico →</Link>
         </div>
-      </div>
+      </section>
 
-      {/* ─── FOOTER ─── */}
       <footer className="site-footer">
         <div className="w">
           <div className="foot">
             <img src={logoSrc} alt="Defiéndete" />
-            <p className="foot-disc">
-              Información legal estructurada con respaldo en la ley colombiana.
-              Para representación formal ante estrados, te conectamos con un abogado aliado.
-            </p>
-            <div className="foot-copy">© 2026 · Hecho en Colombia</div>
+            <p className="d">Información legal estructurada con respaldo en la ley colombiana. Para representación formal ante estrados, te conectamos con un abogado aliado.</p>
+            <span className="c">© 2026 · Hecho en Colombia</span>
           </div>
         </div>
       </footer>
-
     </div>
   )
 }
