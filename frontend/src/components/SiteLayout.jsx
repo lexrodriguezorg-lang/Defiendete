@@ -39,10 +39,11 @@ const SiteLayout = ({ children, noIntro = false, innerWidth = false }) => {
   }, [menuOpen])
 
   const navItems = [
-    { to: '/',                idx: '01', label: 'Inicio'          },
-    { to: '/de-que-se-trata', idx: '02', label: 'De qué se trata' },
-    { to: '/precios',         idx: '03', label: 'Precios'         },
-    { to: '/abogados',        idx: '04', label: 'Para abogados'   },
+    { to: '/',                       idx: '01', label: 'Inicio'                },
+    { to: '/de-que-se-trata',        idx: '02', label: 'De qué se trata'      },
+    { to: '/precios',                idx: '03', label: 'Precios'               },
+    { to: '/preguntas-frecuentes',   idx: '04', label: 'Preguntas frecuentes' },
+    { to: '/abogados',               idx: '05', label: 'Para abogados'        },
   ]
 
   const rootClass = [

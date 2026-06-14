@@ -43,38 +43,78 @@ const CountUp = ({ target, duration = 1200 }) => {
   return <span ref={ref}>{val.toLocaleString('es-CO')}</span>
 }
 
-/* ── Animación del panel de verificación ── */
-const REFS = [
-  'Art. 64 CST — Terminación unilateral',
-  'Sentencia T-478 / 2023 — Corte Const.',
-  'Ley 361 / 1997 — Estabilidad reforzada',
-  'Decreto 2351 / 1965 — Art. 6',
+/* ── Panel de verificación en vivo ── */
+const VERIFY_REFS = [
+  { name: 'Art. 64 CST — Terminación unilateral',  src: 'Código Sustantivo del Trabajo', score: 0.97 },
+  { name: 'Sentencia T-478 / 2023',                src: 'Corte Constitucional',          score: 0.91 },
+  { name: 'Ley 361 / 1997 — Estabilidad reforzada', src: 'Congreso de la República',     score: 0.89 },
+  { name: 'Decreto 2351 / 1965, Art. 6',           src: 'Diario Oficial',                score: 0.93 },
 ]
+
 const VerifyPanel = () => {
-  const [rows, setRows]       = useState([])
-  const [scanning, setScanning] = useState(true)
-  const [done, setDone]       = useState(false)
   const panelRef = useRef(null)
   const started  = useRef(false)
+  const timers   = useRef([])
+
+  const [rows, setRows] = useState(
+    VERIFY_REFS.map(() => ({ status: 'idle', srcState: null, tag: null, barPct: 0, num: 0 }))
+  )
+  const [doneCount,   setDoneCount]   = useState(0)
+  const [scanDone,    setScanDone]    = useState(false)
+  const [footerShow,  setFooterShow]  = useState(false)
+
+  const patchRow = (i, patch) =>
+    setRows((prev) => {
+      const next = [...prev]
+      next[i] = { ...next[i], ...patch }
+      return next
+    })
 
   useEffect(() => {
     const el = panelRef.current
     if (!el) return
+
     const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && !started.current) {
-        started.current = true
-        REFS.forEach((r, i) => {
-          setTimeout(() => {
-            setRows((prev) => [...prev, r])
-            if (i === REFS.length - 1) {
-              setTimeout(() => { setScanning(false); setDone(true) }, 600)
-            }
-          }, 700 + i * 550)
-        })
-      }
-    }, { threshold: 0.4 })
+      if (!e.isIntersecting || started.current) return
+      started.current = true
+
+      VERIFY_REFS.forEach((r, i) => {
+        const base = i * 1300
+
+        /* paso 1 — activar fila, estado "verificando" (amber) */
+        timers.current.push(setTimeout(() => {
+          patchRow(i, { status: 'active', srcState: 'checking', tag: 'checking' })
+        }, base + 200))
+
+        /* paso 2 — barra de progreso + contador de score */
+        timers.current.push(setTimeout(() => {
+          patchRow(i, { barPct: r.score * 100 })
+          let v = 0
+          const iv = setInterval(() => {
+            v = Math.min(v + 0.05, r.score)
+            patchRow(i, { num: v })
+            if (v >= r.score) clearInterval(iv)
+          }, 30)
+          timers.current.push(iv)
+        }, base + 600))
+
+        /* paso 3 — marcar como verificada (teal) */
+        timers.current.push(setTimeout(() => {
+          patchRow(i, { status: 'done', srcState: 'done', tag: 'ok' })
+          setDoneCount((prev) => prev + 1)
+          if (i === VERIFY_REFS.length - 1) {
+            setScanDone(true)
+            setFooterShow(true)
+          }
+        }, base + 1400))
+      })
+    }, { threshold: 0.35 })
+
     io.observe(el)
-    return () => io.disconnect()
+    return () => {
+      io.disconnect()
+      timers.current.forEach((id) => { clearTimeout(id); clearInterval(id) })
+    }
   }, [])
 
   return (
@@ -82,21 +122,43 @@ const VerifyPanel = () => {
       <div className="vh">
         <span className="t">Verificación de referencias</span>
         <span className="scan">
-          <span className="sp" style={{ animation: scanning ? undefined : 'none', opacity: scanning ? 1 : 0 }} />
-          <span>{scanning ? 'Analizando…' : '✓ Completado'}</span>
+          {!scanDone && <span className="sp" />}
+          <span>{scanDone ? 'Completo' : 'Analizando…'}</span>
         </span>
       </div>
       <div className="vb">
-        {rows.map((r) => (
-          <div key={r} className="vr">
-            <span className="rn">{r}</span>
-            <span className="rv-ok">✓ Verificada</span>
-          </div>
-        ))}
+        {VERIFY_REFS.map((r, i) => {
+          const row = rows[i]
+          return (
+            <div key={r.name} className={`vr${row.status !== 'idle' ? ` ${row.status}` : ''}`}>
+              <div>
+                <div className="name">{r.name}</div>
+                <div className="src">
+                  {row.srcState === 'checking' && (
+                    <>Consultando fuente <span className="dots">···</span></>
+                  )}
+                  {row.srcState === 'done' && `${r.src} · contrastado`}
+                </div>
+                <div className="vbar"><i style={{ width: `${row.barPct}%` }} /></div>
+              </div>
+              <div className="vsc">
+                <span className="num">
+                  {row.status === 'idle' ? '—' : row.num.toFixed(2)}
+                </span>
+                <span className={`tag${row.tag ? ` ${row.tag}` : ''}`}>
+                  {row.tag === 'checking' && 'verificando'}
+                  {row.tag === 'ok'       && '✓ verificada'}
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
       <div className="vf">
-        <span className="fl">{rows.length} / {REFS.length} verificadas</span>
-        {done && <span className="fr"><span className="ck">✓</span> Listo para radicar</span>}
+        <span className="fl">{doneCount} / {VERIFY_REFS.length} verificadas</span>
+        <span className={`fr${footerShow ? ' show' : ''}`}>
+          <span className="ck">✓</span>Listo para radicar
+        </span>
       </div>
     </div>
   )

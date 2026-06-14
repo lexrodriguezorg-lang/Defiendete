@@ -10,6 +10,7 @@ import Caso from './pages/Caso'
 import Abogados from './pages/Abogados'
 import DeQueSeTrata from './pages/DeQueSeTrata'
 import Precios from './pages/Precios'
+import PreguntasFrecuentes from './pages/PreguntasFrecuentes'
 import DashboardUsuario from './pages/DashboardUsuario'
 import DashboardAbogado from './pages/DashboardAbogado'
 import Login from './pages/Login'
@@ -50,6 +51,9 @@ const App = () => {
           />
           <Route path="/abogados"
             element={<SiteLayout noIntro innerWidth><Abogados /></SiteLayout>}
+          />
+          <Route path="/preguntas-frecuentes"
+            element={<SiteLayout noIntro><PreguntasFrecuentes /></SiteLayout>}
           />
 
           {/* ── Funnel — usa su propio layout ── */}
