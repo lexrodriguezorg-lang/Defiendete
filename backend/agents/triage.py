@@ -186,7 +186,7 @@ class TriageAgent:
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=2048,
+                max_tokens=4096,
                 system=TRIAGE_SYSTEM_PROMPT,
                 messages=messages,
             )
@@ -223,7 +223,24 @@ class TriageAgent:
             cleaned = cleaned[3:]
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]
-        return json.loads(cleaned.strip())
+        cleaned = cleaned.strip()
+        # Extraer solo el bloque JSON si hay texto extra al final
+        brace_start = cleaned.find("{")
+        if brace_start > 0:
+            cleaned = cleaned[brace_start:]
+        depth = 0
+        end_idx = -1
+        for i, ch in enumerate(cleaned):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i + 1
+                    break
+        if end_idx > 0:
+            cleaned = cleaned[:end_idx]
+        return json.loads(cleaned)
 
     def _retry_with_strict_json(
         self, user_story: str, user_context: dict | None = None
@@ -242,7 +259,7 @@ class TriageAgent:
 
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=4096,
             system=TRIAGE_SYSTEM_PROMPT + strict_suffix,
             messages=[{"role": "user", "content": content}],
         )

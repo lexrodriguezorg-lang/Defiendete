@@ -247,7 +247,7 @@ y que el documento tenga coherencia jurídica."""
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=AUDITOR_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
             )
@@ -259,8 +259,24 @@ y que el documento tenga coherencia jurídica."""
                 raw = raw[3:]
             if raw.endswith("```"):
                 raw = raw[:-3]
+            raw = raw.strip()
+            brace_start = raw.find("{")
+            if brace_start > 0:
+                raw = raw[brace_start:]
+            depth = 0
+            end_idx = -1
+            for i, ch in enumerate(raw):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end_idx = i + 1
+                        break
+            if end_idx > 0:
+                raw = raw[:end_idx]
 
-            return json.loads(raw.strip())
+            return json.loads(raw)
 
         except Exception as e:
             logger.error("opus_audit_error", error=str(e))

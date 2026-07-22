@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
     model_haiku: str = "claude-haiku-4-5-20251001"   # diagnóstico gratis (bajo costo)
-    model_agents: str = "claude-sonnet-4-20250514"   # pipeline pago (Especialista, OC, Redactor)
-    model_auditor: str = "claude-opus-4-20250514"    # auditoría final
+    model_agents: str = "claude-sonnet-4-6"          # pipeline pago (Especialista, OC, Redactor)
+    model_auditor: str = "claude-opus-4-8"           # auditoría final
 
     # Qdrant
     qdrant_host: str = "localhost"

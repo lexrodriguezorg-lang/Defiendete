@@ -45,27 +45,36 @@ class LegalRetriever:
         if top_k is None:
             top_k = self.settings.rag_top_k
 
-        # 1. Generar embedding de la consulta
-        query_vector = self.embeddings.embed_text(query)
+        try:
+            # 1. Generar embedding de la consulta
+            query_vector = self.embeddings.embed_text(query)
 
-        # 2. Buscar en Qdrant
-        results = self.db.search(
-            query_vector=query_vector,
-            rama=rama,
-            tipo=tipo,
-            numero=numero,
-            top_k=top_k,
-            min_score=self.settings.rag_min_score,
-        )
+            # 2. Buscar en Qdrant
+            results = self.db.search(
+                query_vector=query_vector,
+                rama=rama,
+                tipo=tipo,
+                numero=numero,
+                top_k=top_k,
+                min_score=self.settings.rag_min_score,
+            )
 
-        logger.info(
-            "retrieval_complete",
-            query=query[:100],
-            rama=rama,
-            results_count=len(results),
-        )
+            logger.info(
+                "retrieval_complete",
+                query=query[:100],
+                rama=rama,
+                results_count=len(results),
+            )
 
-        return results
+            return results
+
+        except Exception as e:
+            logger.warning(
+                "retrieval_qdrant_unavailable",
+                error=str(e),
+                query=query[:100],
+            )
+            return []
 
     def verify_legal_reference(
         self,
@@ -82,22 +91,31 @@ class LegalRetriever:
         Returns:
             {"verified": bool, "score": float, "match": dict | None}
         """
-        query_vector = self.embeddings.embed_text(reference_text)
-        result = self.db.verify_reference(
-            query_vector=query_vector,
-            norma=norma,
-            articulo=articulo,
-        )
+        try:
+            query_vector = self.embeddings.embed_text(reference_text)
+            result = self.db.verify_reference(
+                query_vector=query_vector,
+                norma=norma,
+                articulo=articulo,
+            )
 
-        logger.info(
-            "reference_verified",
-            norma=norma,
-            articulo=articulo,
-            verified=result["verified"],
-            score=result["score"],
-        )
+            logger.info(
+                "reference_verified",
+                norma=norma,
+                articulo=articulo,
+                verified=result["verified"],
+                score=result["score"],
+            )
 
-        return result
+            return result
+
+        except Exception as e:
+            logger.warning(
+                "verify_reference_qdrant_unavailable",
+                norma=norma,
+                error=str(e),
+            )
+            return {"verified": False, "score": 0.0, "match": None}
 
     def get_context_for_case(
         self,
