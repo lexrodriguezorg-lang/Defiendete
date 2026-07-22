@@ -26,6 +26,7 @@ class CorpusLegalDB:
         self.client = QdrantClient(
             host=settings.qdrant_host,
             port=settings.qdrant_port,
+            check_compatibility=False,
         )
         self.collection = settings.qdrant_collection
         self.embedding_dim = settings.qdrant_embedding_dim
@@ -92,7 +93,7 @@ class CorpusLegalDB:
         ]:
             self.client.create_payload_index(
                 collection_name=self.collection,
-                field_name=field,
+                key=field,
                 field_schema=schema,
             )
 
@@ -152,22 +153,22 @@ class CorpusLegalDB:
         conditions = []
         if rama:
             conditions.append(
-                FieldCondition(field_name="rama", match=MatchValue(value=rama))
+                FieldCondition(key="rama", match=MatchValue(value=rama))
             )
         if tipo:
             conditions.append(
-                FieldCondition(field_name="tipo", match=MatchValue(value=tipo))
+                FieldCondition(key="tipo", match=MatchValue(value=tipo))
             )
         if numero:
             conditions.append(
-                FieldCondition(field_name="numero", match=MatchValue(value=numero))
+                FieldCondition(key="numero", match=MatchValue(value=numero))
             )
 
         query_filter = Filter(must=conditions) if conditions else None
 
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=query_filter,
             limit=top_k,
             score_threshold=min_score,
@@ -182,7 +183,7 @@ class CorpusLegalDB:
                     k: v for k, v in hit.payload.items() if k != "text"
                 },
             }
-            for hit in results
+            for hit in response.points
         ]
 
     def verify_reference(
@@ -198,27 +199,27 @@ class CorpusLegalDB:
             {"verified": bool, "score": float, "match": dict | None}
         """
         conditions = [
-            FieldCondition(field_name="numero", match=MatchValue(value=norma))
+            FieldCondition(key="numero", match=MatchValue(value=norma))
         ]
         if articulo is not None:
             conditions.append(
                 FieldCondition(
-                    field_name="articulo", match=MatchValue(value=str(articulo))
+                    key="articulo", match=MatchValue(value=str(articulo))
                 )
             )
 
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=Filter(must=conditions),
             limit=1,
             score_threshold=0.0,
         )
 
-        if not results:
+        if not response.points:
             return {"verified": False, "score": 0.0, "match": None}
 
-        hit = results[0]
+        hit = response.points[0]
         settings = get_settings()
         return {
             "verified": hit.score >= settings.auditor_min_score,

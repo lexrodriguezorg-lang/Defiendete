@@ -7,6 +7,12 @@ Modelo: paraphrase-multilingual-MiniLM-L12-v2 — 384 dimensiones, multilingüe,
 
 from __future__ import annotations
 
+import os
+# Force offline mode — model is cached locally; prevents httpx SSL errors from
+# huggingface_hub trying to check for updates on every load.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 from typing import Optional
 import numpy as np
 import structlog

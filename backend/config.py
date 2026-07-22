@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     # RAG
     rag_top_k: int = 10
     rag_rerank_top_k: int = 5
-    rag_min_score: float = 0.75
-    auditor_min_score: float = 0.85
+    rag_min_score: float = 0.65
+    auditor_min_score: float = 0.70
 
     class Config:
         env_file = ".env"
