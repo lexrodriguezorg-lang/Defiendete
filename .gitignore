@@ -8,3 +8,6 @@ __pycache__/
 
 # Nunca trackear vercel.json en la raiz — Root Directory esta configurado en el panel de Vercel
 /vercel.json
+private-data/
+*.sqlite3
+*.sqlite3-*

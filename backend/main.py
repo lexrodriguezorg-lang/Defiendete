@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from config import get_settings
-from api.routes import auth, cases, payments, documents, chat
+from api.routes import auth, cases, payments, documents, chat, workspace
 
 settings = get_settings()
 
@@ -78,7 +78,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Rutas
+@app.middleware("http")
+async def private_response_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/api/auth", "/api/workspace")):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.include_router(auth.router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(cases.router, prefix="/api/cases", tags=["Casos"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Pagos"])
@@ -99,3 +109,8 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+app.include_router(
+    workspace.router, prefix="/api/workspace", tags=["Expediente privado"]
+)
